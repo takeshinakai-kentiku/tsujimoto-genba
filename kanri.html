@@ -91,6 +91,10 @@ textarea{min-height:100px}
 #tabbar div.on{color:var(--blue)}
 #tabbar span{display:block;font-size:24px;line-height:1.2}
 .menu .btn{text-align:left;padding-left:20px}
+#lb{position:fixed;inset:0;background:#000;z-index:30;display:flex;align-items:center;justify-content:center;touch-action:pinch-zoom}
+#lb img{max-width:100%;max-height:100%;object-fit:contain}
+#lb .lbx{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;color:#fff;background:rgba(255,255,255,.2);border-radius:20px;padding:8px 14px;font-size:16px;font-weight:600}
+.thumbs img[data-p]{cursor:zoom-in}
 .kywarn{display:flex;align-items:center;gap:12px;background:#fff4e5;border:2px solid var(--orange);border-radius:18px;padding:14px;margin-bottom:12px;cursor:pointer;animation:kwp 1.6s ease-in-out infinite}
 .kywarn .kw-ic{width:44px;height:44px;border-radius:12px;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 44px}.kywarn .kw-ic svg{width:26px;height:26px}
 .kywarn b{display:block;font-size:20px;color:#b35c00}.kywarn span{font-size:14px;color:#6b4a1f}
@@ -353,6 +357,12 @@ function done(title, time, extra = '') {
   $('#bBack').onclick = () => viewHome();
   sendState();
 }
+// 写真を画面いっぱいに出す（指で広げると拡大、押すと閉じる）。window.open はアイフォンで開かなかった（11/1）
+function showPhoto(src) {
+  const d = document.createElement('div'); d.id = 'lb';
+  d.innerHTML = '<img src="' + src + '"><div class="lbx">✕ 閉じる</div>';
+  d.onclick = () => d.remove(); document.body.appendChild(d);
+}
 function kyFirst() {
   const m = document.createElement('div'); m.id = 'sheet';
   m.innerHTML = '<div class="sh"><div class="grab"></div><h2 class="center" style="margin:6px 0 2px;color:#c77700">KYがまだです</h2><div class="small center">KYを入れないと「出ました」は押せません</div><button class="btn big" id="k1">KYを入れる</button><button class="btn gray" id="k2">戻る</button></div>';
@@ -527,7 +537,7 @@ function adminTab(tab) {
   render(h);
   $$('.tabs div').forEach(t => t.onclick = () => adminTab(t.dataset.t));
   if ($('#reload')) $('#reload').onclick = adminStart;
-  $$('img[data-p]').forEach(async im => { try { im.src = await call('adminPhoto', A.pin, im.dataset.p); im.onclick = () => window.open(im.src); } catch (e) { im.alt = '×'; } });
+  $$('img[data-p]').forEach(async im => { try { im.src = await call('adminPhoto', A.pin, im.dataset.p); im.onclick = () => showPhoto(im.src); } catch (e) { im.alt = '×'; } });
   $$('[data-reply]').forEach(b => b.onclick = async () => { const tx = b.parentElement.querySelector('textarea').value.trim(); if (!tx) { toast('返事を書いてください'); return; } busy(true); await call('adminReply', A.pin, b.dataset.reply, tx); busy(false); toast('返事を送りました'); adminStart(); });
   $$('[data-done]').forEach(b => b.onclick = async () => { busy(true); await call('adminRenrakuDone', A.pin, b.dataset.done); busy(false); adminStart(); });
   $$('.tg').forEach(t => t.onclick = async () => { const on = !t.classList.contains('on'); t.classList.toggle('on', on); try { await call('adminSwitch', A.pin, t.dataset.site, t.dataset.f, on); } catch (e) { toast(e.message); t.classList.toggle('on', !on); } });
