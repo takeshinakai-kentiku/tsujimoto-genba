@@ -91,6 +91,8 @@ textarea{min-height:100px}
 #tabbar div.on{color:var(--blue)}
 #tabbar span{display:block;font-size:24px;line-height:1.2}
 .menu .btn{text-align:left;padding-left:20px}
+.btn,.tile,.main,.chip,#tabbar div{transition:transform .08s,opacity .08s}
+.btn:active,.tile:active,.main:active,.chip:active,#tabbar div:active{transform:scale(.96);opacity:.8}
 #busy{position:fixed;inset:0;background:rgba(242,242,247,.55);z-index:20;display:flex;align-items:center;justify-content:center}
 #busy .bx{background:rgba(30,30,30,.9);color:#fff;border-radius:18px;padding:22px 26px;text-align:center;font-size:16px;min-width:170px}
 #busy .spin{width:34px;height:34px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;margin:0 auto 10px;animation:sp 0.8s linear infinite}
@@ -141,7 +143,7 @@ async function call(fn, ...args) {
 }
 function toast(t, ms = 2500) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
 function busy(on, t) { let b = $('#busy'); if (!on) { b && b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'busy'; b.innerHTML = '<div class="bx"><div class="spin"></div><div class="bt"></div></div>'; document.body.appendChild(b); } b.querySelector('.bt').textContent = t || '送っています…'; }
-function render(html, where = '#main') { if (where === '#main' && !render.keepTop) $('#top').innerHTML = ''; $(where).innerHTML = html; window.scrollTo(0, 0); }
+function render(html, where = '#main') { if (where === '#main') render.cur = render.keepTop ? 'home' : 'other'; if (where === '#main' && !render.keepTop) $('#top').innerHTML = ''; $(where).innerHTML = html; window.scrollTo(0, 0); }
 function jpDate(iso) { const d = new Date(iso + 'T00:00:00'); return (d.getMonth() + 1) + '/' + d.getDate() + '（' + '日月火水木金土'[d.getDay()] + '）'; }
 function chips(name, list, opts = {}) { // opts: {multi, sub, value}
   const sel = new Set([].concat(opts.value || []));
@@ -181,15 +183,66 @@ async function start() {
   S.company = LS.get('company') || ''; S.foreman = LS.get('foreman') || ''; S.ninzu = +(LS.get('ninzu') || 1);
   await reboot();
 }
-async function reboot() {
-  busy(true, '読み込み中…');
-  try { S.boot = await call('getBoot', S.siteId, S.company, S.foreman); } catch (e) { busy(false); render('<div class="card">読み込めませんでした。電波の良い所でもう一度開いてください。<br><span class="small">' + esc(e.message || e) + '</span></div>'); return; }
-  busy(false);
-  S.site = S.boot.site; S.rec = S.boot.rec || null;
+function localDay() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function localTime() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function bootKey() { return 'boot.' + S.siteId + '.' + S.company + '.' + S.foreman; }
+function saveBoot() { if (S.boot) { S.boot.rec = S.rec; LS.set(bootKey(), JSON.stringify(S.boot)); } }
+function applyBoot() {
+  S.site = S.boot.site; S.rec = mergeOutbox(S.boot.rec || null);
   header();
   if (!S.site) return viewSitePick();
   if (!S.company || !S.foreman) return viewWho();
   viewHome();
+}
+// 起動：前に読んだ内容をすぐ出して、裏で新しくする（遅く感じないように）
+async function reboot() {
+  let cached = null; try { cached = JSON.parse(LS.get(bootKey()) || 'null'); } catch (e) {}
+  if (cached && cached.today === localDay() && cached.site) { S.boot = cached; applyBoot(); }
+  else busy(true, '読み込み中…');
+  try {
+    const fresh = await call('getBoot', S.siteId, S.company, S.foreman);
+    busy(false); S.boot = fresh;
+    if (!cached || render.cur === 'home') applyBoot(); else { S.site = S.boot.site; S.rec = mergeOutbox(S.boot.rec || null); }
+    saveBoot();
+  } catch (e) {
+    busy(false);
+    if (!cached) render('<div class="card">読み込めませんでした。電波の良い所でもう一度開いてください。<br><span class="small">' + esc(e.message || e) + '</span></div><button class="btn" onclick="reboot()">もう一度</button>');
+    else toast('電波が弱いので、前に読んだ内容を出しています');
+  }
+  flushOutbox();
+}
+// ---------- 送る物の列（電波が悪くても押した物は消えない。押した時の時刻で送る） ----------
+function outbox() { try { return JSON.parse(LS.get('outbox') || '[]'); } catch (e) { return []; } }
+function setOutbox(a) { LS.set('outbox', JSON.stringify(a)); }
+function recKey() { return S.siteId + '|' + S.company + '|' + S.foreman + '|' + localDay(); }
+function mergeOutbox(rec) { let r = rec ? Object.assign({}, rec) : null; outbox().filter(x => x.key === recKey()).forEach(x => { r = Object.assign(r || {}, x.patch); }); return r; }
+function sendQ(fn, payload, patch) {
+  const it = { id: Date.now() + '_' + Math.random().toString(36).slice(2, 6), fn, payload: Object.assign(payload, { day: payload.day || localDay(), time: payload.time || localTime() }), patch, key: recKey() };
+  const a = outbox(); a.push(it); setOutbox(a);
+  S.rec = Object.assign({}, S.rec || {}, patch); saveBoot();
+  flushOutbox();
+}
+let flushing = false;
+async function flushOutbox() {
+  if (flushing) return; flushing = true;
+  let a = outbox();
+  while (a.length) {
+    const it = a[0];
+    try {
+      const rec = await call(it.fn, it.payload);
+      a = outbox().filter(x => x.id !== it.id); setOutbox(a);
+      if (rec && it.key === recKey() && !a.some(x => x.key === it.key)) { S.rec = rec; saveBoot(); }
+    } catch (e) { break; }
+  }
+  flushing = false;
+  sendState();
+}
+function sendState() {
+  const n = outbox().length, el = $('#sendSt');
+  if (el) el.innerHTML = n ? '<span style="color:#c77700">⏳ 送っています…（電波が弱い時は、戻ると自動で送ります）</span>' : '<span style="color:#2e7d32">✓ 中井に届きました</span>';
+  const bn = $('#qBanner');
+  if (bn) { bn.style.display = n ? 'block' : 'none'; if (n) bn.querySelector('b').textContent = n; }
+  if (n) { clearTimeout(sendState.t); sendState.t = setTimeout(flushOutbox, 15000); }
 }
 function header() {
   $('#hdr .site').textContent = S.site ? S.site.name : 'ツジモト現場';
@@ -263,7 +316,8 @@ function viewHome() {
   if (f['ヒヤリハット']) g += tile('bHy', '#ffcc00', ICON.bolt, 'ヒヤリハット', 'ケガ・危なかった事');
   h += '<div class="grid">' + g + '</div>';
   if (!r['入場'] && !r['退場']) h += '<button class="btn gray" id="bOut">出ました<small>「入りました」を押し忘れた時</small></button>';
-  render.keepTop = true; render(h); render.keepTop = false;
+  h = '<div class="card note" id="qBanner" style="display:none"><b></b>件 まだ届いていません。電波が戻ると自動で送ります　<span class="link" onclick="flushOutbox()">今すぐ送る</span></div>' + h;
+  render.keepTop = true; render(h); render.keepTop = false; sendState();
   if ($('#ms')) $$('#ms button').forEach(x => x.onclick = e => { e.stopPropagation(); const n = $('#msN'); n.textContent = Math.max(1, +n.textContent + +x.dataset.d); });
   if ($('#bMain')) $('#bMain').onclick = () => !r['入場'] ? confirmNinzu(+$('#msN').textContent) : viewTaijo();
   if ($('#bUndo')) $('#bUndo').onclick = () => cancel(canOut ? '退場' : '入場');
@@ -280,8 +334,9 @@ async function cancel(what) {
 }
 function done(title, time, extra = '') {
   $('#top').innerHTML = '';
-  render('<div class="card center" style="padding:28px 16px"><div style="font-size:54px;color:var(--green)">✓</div><h2 style="margin:0">' + esc(title) + '</h2><div class="time">' + esc(time) + '</div></div>' + extra + '<button class="btn gray" id="bBack">ホームへ戻る</button>');
-  $('#bBack').onclick = reboot;
+  render('<div class="card center" style="padding:28px 16px"><div style="font-size:54px;color:var(--green)">✓</div><h2 style="margin:0">' + esc(title) + '</h2><div class="time">' + esc(time) + '</div><div class="small" id="sendSt"></div></div>' + extra + '<button class="btn gray" id="bBack">ホームへ戻る</button>');
+  $('#bBack').onclick = () => viewHome();
+  sendState();
 }
 // ---------- 入場：人数を確かめる窓 → 記録 ----------
 function confirmNinzu(n) {
@@ -294,10 +349,9 @@ function confirmNinzu(n) {
   m.onclick = e => { if (e.target === m) m.remove(); };
   $('#cnOk').onclick = () => { const v = stepVal('cn'); if (v < 1) { toast('1名以上にしてください'); return; } m.remove(); nyujoNow(v); };
 }
-async function nyujoNow(n) {
-  busy(true, '記録しています…');
-  try { S.rec = await call('nyujo', Object.assign(P(), { ninzu: n, qrNone: S.qrNone })); } catch (e) { busy(false); toast('送れませんでした。電波を確かめてもう一度：' + e.message, 5000); return; }
-  busy(false); S.ninzu = n; LS.set('ninzu', n); LS.set('last', JSON.stringify({ what: '入場', ts: Date.now() }));
+function nyujoNow(n) {
+  sendQ('nyujo', Object.assign(P(), { ninzu: n, qrNone: S.qrNone }), { '入場': localTime(), '人数': String(n), 'QRなし': S.qrNone ? '○' : '', '中止': '', '中止の理由': '' });
+  S.ninzu = n; LS.set('ninzu', n); LS.set('last', JSON.stringify({ what: '入場', ts: Date.now() }));
   done('入りました（' + n + '名）', S.rec['入場'], S.site.features.KY && !S.rec['作業内容'] ? '<button class="btn big" id="bKY2">続けて KY を入れる</button>' : '');
   if ($('#bKY2')) $('#bKY2').onclick = viewKY;
 }// ---------- KY ----------
@@ -321,8 +375,8 @@ function viewKY() {
     $('#send').onclick = async () => {
       const kk = chipVal('kk').map(i => items[+i]), mk = chipVal('mk')[0] || '';
       if (!kk.length) { toast('危険のポイントを1つは選んでください'); return; }
-      busy(true); try { S.rec = await call('ky', Object.assign(P(), { basho, koutei, kiken: kk, mokuhyou: mk })); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
-      busy(false); done('KYを記録しました', S.boot.now, '<div class="card"><b>作業内容</b><br>' + esc(S.rec['作業内容']) + '<br><b>安全目標</b><br>' + esc(mk) + '</div>');
+      sendQ('ky', Object.assign(P(), { basho, koutei, kiken: kk, mokuhyou: mk }), { '作業内容': [basho.join('・'), koutei.join('・')].filter(Boolean).join(' ') });
+      done('KYを記録しました', localTime(), '<div class="card"><b>作業内容</b><br>' + esc(S.rec['作業内容']) + '<br><b>安全目標</b><br>' + esc(mk) + '</div>');
     };
   };
 }
@@ -340,8 +394,8 @@ function viewTaijo() {
   $('#go').onclick = async () => {
     const susumi = [1, 2].map(i => ({ basho: chipVal('s' + i + 'b')[0] || '', koutei: chipVal('s' + i + 'k')[0] || '', dokomade: chipVal('s' + i + 'd')[0] || '' })).filter(s => s.koutei || s.basho);
     const p = Object.assign(P(), { susumi, ashita: f['明日'] ? (chipVal('as')[0] || '') : '', ashitaNinzu: f['明日'] && $('#an') ? stepVal('an') : '', katazuke: f['片付け'] ? chipVal('kz').join('・') : '' });
-    busy(true); try { S.rec = await call('taijo', p); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
-    busy(false); LS.set('last', JSON.stringify({ what: '退場', ts: Date.now() })); done('出ました お疲れ様でした', S.rec['退場']);
+    sendQ('taijo', p, { '退場': localTime() });
+    LS.set('last', JSON.stringify({ what: '退場', ts: Date.now() })); done('出ました お疲れ様でした', S.rec['退場']);
   };
 }
 // ---------- 中止 ----------
@@ -350,8 +404,8 @@ function viewChushi() {
   $('#bBack').onclick = viewHome;
   $('#go').onclick = async () => {
     const hani = chipVal('hn')[0], riyuu = chipVal('ry')[0]; if (!hani || !riyuu) { toast('どのくらい・理由を選んでください'); return; }
-    busy(true); try { S.rec = await call('chushi', Object.assign(P(), { hani, riyuu, memo: $('#memo').value.trim() })); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
-    busy(false); done('中止を知らせました', hani + '中止（' + riyuu + '）');
+    sendQ('chushi', Object.assign(P(), { hani, riyuu, memo: $('#memo').value.trim() }), { '中止': hani, '中止の理由': riyuu });
+    done('中止を知らせました', hani + '中止（' + riyuu + '）');
   };
 }
 // ---------- ここどうしますか ----------
