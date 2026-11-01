@@ -355,11 +355,11 @@ function done(title, time, extra = '') {
 }
 function kyFirst() {
   const m = document.createElement('div'); m.id = 'sheet';
-  m.innerHTML = '<div class="sh"><div class="grab"></div><h2 class="center" style="margin:6px 0 2px;color:#c77700">KYがまだです</h2><div class="small center">今日のKYが入っていません。先に入れてから帰ってください</div><button class="btn big" id="k1">KYを入れる</button><button class="btn gray" id="k2">KYなしで 出ました</button></div>';
+  m.innerHTML = '<div class="sh"><div class="grab"></div><h2 class="center" style="margin:6px 0 2px;color:#c77700">KYがまだです</h2><div class="small center">KYを入れないと「出ました」は押せません</div><button class="btn big" id="k1">KYを入れる</button><button class="btn gray" id="k2">戻る</button></div>';
   document.body.appendChild(m);
   m.onclick = e => { if (e.target === m) m.remove(); };
   $('#k1').onclick = () => { m.remove(); viewKY(); };
-  $('#k2').onclick = () => { m.remove(); viewTaijo(); };
+  $('#k2').onclick = () => m.remove();   // KYを入れないと「出ました」は押せない（11/1 中井様）
 }
 // ---------- 入場：人数を確かめる窓 → 記録 ----------
 function confirmNinzu(n) {
