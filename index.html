@@ -174,7 +174,10 @@ input[type=time],input[type=date]{-webkit-appearance:none;appearance:none;displa
 .rc-warn{color:#b45309;font-size:14px;font-weight:700;margin-top:4px}
 .rc-ng{color:var(--red);font-size:15px;font-weight:700}
 .rc-ed{display:inline-block;margin-top:10px;color:var(--blue);font-weight:700;font-size:15px}
-#sheet .sh.esh{max-height:88dvh;display:flex;flex-direction:column;padding-bottom:0}
+.miss{outline:3px solid var(--red);outline-offset:4px;border-radius:12px}
+.btn,.chip,.tile,.main,.stepper button,#tabbar div{touch-action:manipulation}
+.kk .kk-q b,.kk .kk-a b{font-size:14px}.pill{font-size:15px}
+#sheet .sh.esh{max-height:88vh;max-height:88dvh;display:flex;flex-direction:column;padding-bottom:0}
 #sheet .esh .esc{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex:1;padding-bottom:8px}
 #sheet .esh .efoot{display:flex;gap:10px;padding:8px 0 calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line)}
 #sheet .esh .efoot .btn{margin:0;flex:1}
@@ -196,12 +199,24 @@ function showStuck(msg) { const m = document.getElementById('main'); if (m && !m
 window.addEventListener('error', e => showStuck(e.message));
 window.addEventListener('unhandledrejection', e => showStuck(e.reason && e.reason.message || e.reason));
 setTimeout(() => showStuck('電波が弱いか、読み込みに時間がかかっています'), 20000);
-const QR_AT = INIT.qr ? Date.now() : 0;
+// ホーム画面に追加したアイコンから開いた時（QRはいつもサファリで開くので、アイコンでは入場・退場は押せない）
+const STANDALONE = !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+// QRを読んだ時刻は、このタブの間だけ覚えておく（読み込み直しても10分の間は押せるように）
+const QR_AT = (() => {
+  const qr = INIT.qr && !STANDALONE;
+  try {
+    if (qr) { sessionStorage.setItem('tg.qr', JSON.stringify({ t: Date.now(), g: INIT.siteId })); return Date.now(); }
+    const o = JSON.parse(sessionStorage.getItem('tg.qr') || 'null');
+    if (o && INIT.siteId && o.g === INIT.siteId) return o.t;
+  } catch (e) {}
+  return qr ? Date.now() : 0;
+})();
 function qrOK() { return QR_AT && Date.now() - QR_AT < 10 * 60000; }   // QRを読んでから10分だけ「入りました・出ました」が押せる（11/1 見直し）
 const TEST = /[?&]t=1(&|$)/.test(location.search);
 function jpErr(e) { const m = String(e && e.message || e || ''); return /load failed|failed to fetch|network|abort|timeout|timed out/i.test(m) ? '電波が弱くて送れませんでした。電波の良い所でもう一度押してください' : (m || 'うまくいきませんでした'); }
 window.addEventListener('unhandledrejection', e => { try { busy(false); toast(jpErr(e.reason), 0); } catch (x) {} });
-const LS = { get: k => { try { return localStorage.getItem('tg.' + k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem('tg.' + k) : localStorage.setItem('tg.' + k, v); } catch (e) {} } };
+const LS = { get: k => { try { return localStorage.getItem('tg.' + k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem('tg.' + k) : localStorage.setItem('tg.' + k, v); return true; } catch (e) { return false; } } };
+document.addEventListener('touchstart', () => {}, { passive: true });   // アイフォンで押した時に縮む（押した感じを出す）
 const S = { siteId: '', site: null, company: '', foreman: '', ninzu: 1, qrNone: false, boot: null, rec: null };
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -222,7 +237,7 @@ async function call(fn, ...args) {
   const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 60000);   // 60秒で打ち切る（写真付きは時間がかかる）（電波が切れても止まったままにしない）
   let r; try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn, args }), signal: ac.signal }); } catch (e) { throw new Error('電波が弱くて送れませんでした（' + (e.name === 'AbortError' ? 'timeout' : 'network') + '）'); } finally { clearTimeout(tm); }
   let j; try { j = await r.json(); } catch (e) { throw new Error('記録の窓口から返事がありませんでした。少し待ってもう一度押してください'); }
-  if (j.error) throw new Error(j.error);
+  if (j.error) { const er = new Error(j.error); er.reject = !!j.reject; throw er; }   // reject＝中身の誤り（送り直しても通らない）
   return j.result;
 }
 function toast(t, ms = 3500) {   // ms=0 は押すまで消えない（大事な注意・失敗）
@@ -231,7 +246,13 @@ function toast(t, ms = 3500) {   // ms=0 は押すまで消えない（大事な
 }
 function isNakai() { return !!LS.get('pin'); }   // 中井の画面の暗証番号が入っている携帯
 function busy(on, t) { let b = $('#busy'); if (!on) { b && b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'busy'; b.innerHTML = '<div class="bx"><div class="spin"></div><div class="bt"></div></div>'; document.body.appendChild(b); } b.querySelector('.bt').textContent = t || '送っています…'; }
-function render(html, where = '#main') { if (where === '#main') render.cur = render.keepTop ? 'home' : 'other'; if (where === '#main' && !render.keepTop) $('#top').innerHTML = ''; $(where).innerHTML = html; window.scrollTo(0, 0); }
+function render(html, where = '#main') { if (where === '#main') { render.cur = render.keepTop ? 'home' : 'other'; render.dirty = false; } if (where === '#main' && !render.keepTop) $('#top').innerHTML = ''; $(where).innerHTML = html; if (where === '#main') window.scrollTo(0, 0); }
+// 何か入れた後に「戻る」を押した時は確かめる（押し間違いで全部消えないように）
+document.addEventListener('chipchange', e => { if (e.target.closest && e.target.closest('#main')) render.dirty = true; });
+document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#main')) render.dirty = true; });
+const backTo = fn => () => { if (render.dirty && !confirm('入れた物が消えます。戻りますか')) return; fn(); };
+// 窓（下から出る）は、開いてすぐの外押しでは閉じない（大きいボタンの2度押しで閉じないように）
+function sheetClose(m) { const t0 = Date.now(); m.onclick = e => { if (e.target === m && Date.now() - t0 > 600) m.remove(); }; }
 function jpDate(iso) { const d = new Date(iso + 'T00:00:00'); return (d.getMonth() + 1) + '/' + d.getDate() + '（' + '日月火水木金土'[d.getDay()] + '）'; }
 // 手で書いた物は、その現場の候補として携帯に覚えておく（次からは押すだけ）
 function memGet(k) { try { return JSON.parse(LS.get('free.' + S.siteId + '.' + k) || '[]'); } catch (e) { return []; } }
@@ -272,14 +293,24 @@ document.addEventListener('change', async e => {
   if (PHOTOS.length >= +e.target.dataset.max) { toast('これ以上は付けられません'); return; }
   busy(true, '写真を小さくしています…'); const ph = await shrink(e.target.files[0]); busy(false); e.target.value = '';
   if (!ph) { toast('この写真は使えません。もう一度撮ってください', 0); return; }
-  PHOTOS.push(ph);
-  $('#thumbs').innerHTML = PHOTOS.map((p, i) => '<img src="' + p + '" data-i="' + i + '" title="押すと消す">').join('');
+  PHOTOS.push(ph); render.dirty = true; drawThumbs();
 });
-document.addEventListener('click', e => { const im = e.target.closest('#thumbs img'); if (!im) return; if (confirm('この写真を消しますか')) { PHOTOS.splice(+im.dataset.i, 1); im.remove(); } });
-function recent(what) { try { const l = JSON.parse(LS.get('last') || '{}'); return l.what === what && Date.now() - l.ts < 5 * 60000; } catch (e) { return false; } }
+function drawThumbs() { $('#thumbs').innerHTML = PHOTOS.map((p, i) => '<img src="' + p + '" data-i="' + i + '" style="cursor:pointer" title="押すと消す">').join(''); }   // 消した後も番号を付け直す
+document.addEventListener('click', e => { const im = e.target.closest('#thumbs img'); if (!im) return; if (confirm('この写真を消しますか')) { PHOTOS.splice(+im.dataset.i, 1); drawThumbs(); } });
+function recent(what) { try { const l = JSON.parse(LS.get('last') || '{}'); return l.what === what && l.key === recKey() && Date.now() - l.ts < 5 * 60000; } catch (e) { return false; } }
+function markLast(what) { LS.set('last', JSON.stringify({ what, key: recKey(), ts: Date.now() })); }
 function P() { return { siteId: S.siteId, siteName: S.site ? S.site.name : '', company: S.company, foreman: S.foreman }; }
 // 裏に回した画面が戻った時、日付が変わっていたら（または30分たったら）読み直す
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !INIT.admin && S.boot && S.company && (S.boot.today !== localDay() || Date.now() - (reboot.at || 0) > 30 * 60000)) reboot(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { visHid = Date.now(); return; }
+  if (A.data && $('.tabs')) {   // 中井の画面：日付が変わったか5分たったら読み直す。30分以上裏にあったら Face ID をやり直す
+    if (LS.get('fid') && Date.now() - visHid > 30 * 60000) { A.unlocked = false; return adminStart(); }
+    if (A.data.real !== localDay() || Date.now() - visHid > 5 * 60000) { if (A.data.real !== localDay()) A.date = ''; adminStart(true); }
+    return;
+  }
+  if (!INIT.admin && S.boot && S.company && (S.boot.today !== localDay() || Date.now() - (reboot.at || 0) > 30 * 60000)) reboot();
+});
+let visHid = Date.now();
 
 // ---------- 起動 ----------
 async function start() {
@@ -292,7 +323,12 @@ async function start() {
 function localDay() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function localTime() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 function bootKey() { return 'boot.' + S.siteId + '.' + S.company + '.' + S.foreman; }
-function saveBoot() { if (S.boot) { S.boot.rec = S.rec; LS.set(bootKey(), JSON.stringify(S.boot)); } }
+function saveBoot() {
+  if (!S.boot) return;
+  S.boot.rec = S.rec;
+  try { Object.keys(localStorage).filter(k => /^tg\.boot\./.test(k) && k !== 'tg.' + bootKey()).forEach(k => localStorage.removeItem(k)); } catch (e) {}   // 前の現場・職長の分は消す（携帯の置き場がいっぱいにならないように）
+  LS.set(bootKey(), JSON.stringify(S.boot));
+}
 function applyBoot() {
   S.site = S.boot.site; S.rec = mergeOutbox(S.boot.rec || null);
   header();
@@ -304,55 +340,73 @@ function applyBoot() {
 async function reboot(force) {   // force＝画面を必ず描き直す（会社・職長を選んだ時など）
   reboot.at = Date.now();
   let cached = null; try { cached = JSON.parse(LS.get(bootKey()) || 'null'); } catch (e) {}
+  // 前の日に読んだ内容でも、現場・会社・選択肢は使える（今日の記録だけ空にする）。電波の無い朝でも押せるように
+  if (cached && cached.today !== localDay()) cached = Object.assign({}, cached, { today: localDay(), rec: null, yesterdayOpen: null, replies: [], pending: 0 });
   const draw = force || !render.cur || render.cur === 'home';
-  if (cached && cached.today === localDay() && cached.site && draw) { S.boot = cached; applyBoot(); }
-  else busy(true, '読み込み中…');
+  if (cached && cached.site && draw) { S.boot = cached; applyBoot(); }
+  else if (draw) busy(true, '読み込み中…');
+  const seq = flushOutbox.seq || 0;
   try {
     const fresh = await call('getBoot', S.siteId, S.company, S.foreman);
-    busy(false); S.boot = fresh;
+    busy(false);
+    if ((flushOutbox.seq || 0) !== seq && S.rec && fresh.site) fresh.rec = S.rec;   // 読んでいる間に届いた送信の返事の方が新しい（入場が消えて2度押しにならないように）
+    S.boot = fresh;
     if (draw) applyBoot(); else { S.site = S.boot.site; S.rec = mergeOutbox(S.boot.rec || null); }
     saveBoot();
   } catch (e) {
     busy(false);
-    if (!cached) render('<div class="card">読み込めませんでした。電波の良い所でもう一度開いてください。<br><span class="small">' + esc(e.message || e) + '</span></div><button class="btn" onclick="reboot(true)">もう一度</button>');
+    if (!cached && draw) render('<div class="card">読み込めませんでした。電波の良い所でもう一度開いてください。<br><span class="small">' + esc(jpErr(e)) + '</span></div><button class="btn" onclick="reboot(true)">もう一度</button>');
     else toast('電波が弱いので、前に読んだ内容を出しています');
   }
   flushOutbox();
 }
 // ---------- 送る物の列（電波が悪くても押した物は消えない。押した時の時刻で送る） ----------
 function outbox() { try { return JSON.parse(LS.get('outbox') || '[]'); } catch (e) { return []; } }
-function setOutbox(a) { LS.set('outbox', JSON.stringify(a)); }
+function setOutbox(a) { return LS.set('outbox', JSON.stringify(a)); }
+const FN_JP = { nyujo: '入りました', taijo: '出ました', ky: 'KY', chushi: '中止', torikeshi: '取り消し', ashitaOnly: '明日の予定' };
 function recKey() { return S.siteId + '|' + S.company + '|' + S.foreman + '|' + localDay(); }
 function mergeOutbox(rec) { let r = rec ? Object.assign({}, rec) : null; outbox().filter(x => x.key === recKey()).forEach(x => { r = Object.assign(r || {}, x.patch); }); return r; }
 function sendQ(fn, payload, patch) {
   const id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  const it = { id, fn, payload: Object.assign(payload, { day: payload.day || localDay(), time: payload.time || localTime(), qid: id }), patch, key: recKey(), tries: 0 };
-  const a = outbox(); a.push(it); setOutbox(a);
-  S.rec = Object.assign({}, S.rec || {}, patch); saveBoot();
+  // at＝押した時（携帯の時計）。窓口は送った時との差から日本の時刻を出し直す
+  const it = { id, fn, payload: Object.assign(payload, { day: payload.day || localDay(), time: payload.time || localTime(), qid: id, at: Date.now() }), patch, key: recKey(), tries: 0 };
+  const a = outbox(); a.push(it);
+  S.rec = Object.assign({}, S.rec || {}, patch);
+  if (!setOutbox(a)) {   // 携帯の置き場がいっぱいで溜められない時は、その場で送る
+    busy(true); call(fn, Object.assign(it.payload, { sent: Date.now() })).then(rec => { if (rec) S.rec = rec; }).catch(e => toast(jpErr(e), 0)).finally(() => busy(false));
+    return;
+  }
+  saveBoot();
   flushOutbox();
 }
 let flushing = false;
-async function flushOutbox() {
-  if (flushing) return; flushing = true;
-  let a = outbox();
+async function flushOutbox(manual) {   // manual＝「今すぐ送る」を押した時（結果を必ず出す）
+  if (flushing) { if (manual === true) toast('送っています。少し待ってください'); return; } flushing = true;
+  let a = outbox(), rejected = false;
   while (a.length) {
     const it = a[0];
     try {
-      const rec = await call(it.fn, it.payload);
+      const rec = await call(it.fn, Object.assign(it.payload, { sent: Date.now() }));
       a = outbox().filter(x => x.id !== it.id); setOutbox(a);
+      flushOutbox.seq = (flushOutbox.seq || 0) + 1;
       if (rec && it.key === recKey() && !a.some(x => x.key === it.key)) { S.rec = rec; saveBoot(); }
     } catch (e) {
-      if (/^fn$|現場のQRから|直す記録|見つかりません|見られない/.test(String(e && e.message || e))) {   // 窓口が断った物は3回で外す（後ろが止まらないように）
-        it.tries = (it.tries || 0) + 1;
-        a = outbox().map(x => x.id === it.id ? it : x);
-        if (it.tries >= 3) { a = a.filter(x => x.id !== it.id); const f = JSON.parse(LS.get('failed') || '[]'); f.push({ fn: it.fn, when: it.payload.day + ' ' + it.payload.time, err: String(e.message || e), payload: it.payload }); LS.set('failed', JSON.stringify(f.slice(-10))); toast('送れなかった記録があります（' + it.fn + '）。中井に電話してください', 0); }
-        setOutbox(a); if (it.tries < 3) break; else continue;
+      // 窓口が「中身が違う」と断った物は、何度送っても通らない → すぐ列から外して残す（後ろの記録が止まらないように）
+      // 電波・窓口の混みは、列に残して後で送り直す
+      if (e && e.reject) {
+        a = outbox().filter(x => x.id !== it.id); setOutbox(a);
+        let f = []; try { f = JSON.parse(LS.get('failed') || '[]'); } catch (x) {}
+        f.push({ fn: it.fn, when: it.payload.day + ' ' + it.payload.time, err: String(e.message || e), payload: it.payload }); LS.set('failed', JSON.stringify(f.slice(-10)));
+        toast(jpDate(it.payload.day) + ' ' + it.payload.time + 'の「' + (FN_JP[it.fn] || it.fn) + '」は届けられませんでした（' + String(e.message || e) + '）。中井に電話してください', 0);
+        rejected = true; continue;
       }
       break;
     }
   }
   flushing = false;
   sendState();
+  if (manual === true) toast(outbox().length ? 'まだ送れません。電波の良い所でもう一度押してください' : '全部送りました');
+  if (rejected && S.boot && render.cur === 'home') reboot(true);   // 断られた物は画面からも消す（窓口の今の記録で描き直す）
 }
 function sendState() {
   const n = outbox().length, el = $('#sendSt');
@@ -363,7 +417,7 @@ function sendState() {
 }
 function header() {
   $('#hdr .site').textContent = S.site ? S.site.name : 'ツジモト現場';
-  $('#hdr .who').innerHTML = (S.boot ? jpDate(S.boot.today) : '') + (S.company ? '　' + esc(S.company) + '・' + esc(S.foreman) + 'さん' : '');
+  $('#hdr .who').innerHTML = (S.boot ? jpDate(S.boot.today) : '') + (S.company ? '　' + esc(S.company) + '・' + esc(S.foreman) + 'さん' : '') + (STANDALONE && S.site ? '<br><span style="color:#b45309;font-weight:600">このアイコンはこの現場用です。別の現場・入場・退場は現場のQRから</span>' : '');
 }
 function tabbar(on) {
   const f = S.site ? S.site.features : {}, tb = $('#tabbar');
@@ -378,8 +432,12 @@ function tabbar(on) {
 }
 function viewMenu() {
   $('#top').innerHTML = ''; tabbar('menu');
-  render('<h2>その他</h2><div class="menu"><button class="btn gray" id="mWho">👷 職長・会社を変える<small>今：' + esc(S.company) + '・' + esc(S.foreman) + 'さん</small></button><div class="card"><div class="small">今の現場</div><b>' + esc(S.site.name) + '</b><div class="small">別の現場はその現場のQRを読むと切り替わります</div></div></div>');
-  $('#mWho').onclick = () => { $('#tabbar').style.display = 'none'; viewWho(); };
+  render('<h2>その他</h2><div class="menu"><button class="btn gray" id="mWho">👷 職長・会社を変える<small>今：' + esc(S.company) + '・' + esc(S.foreman) + 'さん</small></button>' + (S.boot.phone ? '<a class="btn" style="text-decoration:none" href="tel:' + esc(S.boot.phone) + '">📞 中井に電話 ' + esc(S.boot.phone) + '</a>' : '') + '<div class="card"><div class="small">今の現場</div><b>' + esc(S.site.name) + '</b><div class="small">別の現場はその現場のQRを読むと切り替わります</div></div></div>');
+  $('#mWho').onclick = () => {
+    const r = S.rec || {};
+    if (r['入場'] && !r['退場'] && !confirm('まだ「出ました」を押していません。職長を変えますか\n（交代の時は、今の職長が「出ました」を押すか、新しい職長が自分の携帯で「入りました」を押してください）')) return;
+    $('#tabbar').style.display = 'none'; viewWho();
+  };
 }
 function viewSitePick() {
   if (!INIT.admin) { $('#tabbar').style.display = 'none'; render('<div class="card center" style="padding:30px 18px"><div class="qri" style="margin:0 auto 12px;width:64px;height:64px;border-radius:18px;background:#e5f0ff;color:var(--blue);display:flex;align-items:center;justify-content:center">' + ICON.cam + '</div><h2>現場のQRを読んでください</h2><div class="small">現場に貼ってある「入場・KYはここ！」のQRを、携帯のカメラで読むと開きます</div></div>'); return; }
@@ -410,11 +468,17 @@ function viewHome() {
   b.notices.forEach(n => top += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）</b>' + esc(n.text) + '</div>');
   if (b.yesterdayOpen && !outbox().some(x => x.fn === 'taijo' && x.payload.day === b.yesterdayOpen.date)) top += '<div class="card note"><b>' + jpDate(b.yesterdayOpen.date) + 'の「出ました」が押されていません</b>' + jpDate(b.yesterdayOpen.date) + '（' + esc(b.yesterdayOpen.in) + '入場）は何時に出ましたか' + (!qrOK() && !isNakai() ? '<br><span class="small">現場のQRを読んで開くと入れられます</span>' : '<input type="time" id="yOut" value="17:00"><button class="btn" id="yOk">この時間で記録</button>') + '</div>';
   if (S.site.rain && r['入場'] && !r['明日']) top += '<div class="card note"><b>☂ 明日は雨の予報です</b>明日はどうしますか<div class="row"><button class="btn" data-a="来る">来る</button><button class="btn red" data-a="来ない">来ない</button></div></div>';
-  (b.replies || []).forEach(k => top += '<div class="card note rp" data-rp="' + esc(k.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 中井の返事（' + esc(k.when.slice(5)) + '）' + esc(k.basho ? '・' + k.basho : '') + '</b><span class="small">聞いたこと：' + esc(k.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k.reply) + '</span><br><span class="link" style="font-size:13px">写真とこれまでのやりとりを見る ›</span></div>');
+  // 中井の返事：一番新しい1件だけ大きく、残りは件数だけ（大きいボタンが下に押し出されないように）
+  const rps = b.replies || [], k0 = rps[rps.length - 1];
+  if (k0) top += '<div class="card note rp" data-rp="' + esc(k0.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 中井の返事（' + esc(k0.when.slice(5)) + '）' + esc(k0.basho ? '・' + k0.basho : '') + (rps.length > 1 ? '　ほか' + (rps.length - 1) + '件' : '') + '</b><span class="small">聞いたこと：' + esc(k0.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k0.reply) + '</span><br><span class="link" style="font-size:15px">写真とこれまでのやりとりを見る ›</span></div>';
   render(top, '#top');
   $$('#top [data-rp]').forEach(x => x.onclick = () => { viewKakunin(); });
-  if ($('#yOk')) $('#yOk').onclick = async () => { busy(true); try { await call('taijo', Object.assign(P(), { date: b.yesterdayOpen.date, time: $('#yOut').value, qrNone: !qrOK() })); toast('前の日の退場を記録しました'); reboot(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } };
-  $$('#top [data-a]').forEach(x => x.onclick = async () => { busy(true); try { S.rec = await call('ashitaOnly', Object.assign(P(), { ashita: x.dataset.a })); toast('明日：' + x.dataset.a + ' を記録しました'); viewHome(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
+  if ($('#yOk')) $('#yOk').onclick = async () => { if (!/^\d\d:\d\d$/.test($('#yOut').value)) { toast('出た時刻を入れてください', 0); return; } busy(true); try { await call('taijo', Object.assign(P(), { date: b.yesterdayOpen.date, time: $('#yOut').value, qrNone: !qrOK() })); toast('前の日の退場を記録しました'); reboot(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } };
+  $$('#top [data-a]').forEach(x => x.onclick = () => {   // 雨の答えも送る列で送る（電波が悪くても消えない）
+    const a = x.dataset.a, n = a === '来る' ? (+r['人数'] || S.ninzu || 1) : '';
+    sendQ('ashitaOnly', Object.assign(P(), { ashita: a, ashitaNinzu: n }), { '明日': a, '明日の人数': String(n) });
+    toast('明日：' + a + (n ? '（' + n + '名）' : '') + ' を記録しました。帰る時に変えられます'); viewHome();
+  });
 
   const kyMada = f.KY && r['入場'] && !r['作業内容'] && r['中止'] !== '終日';   // 半日中止でもKYは要る
   // 今日の状態
@@ -428,7 +492,11 @@ function viewHome() {
   if (canIn || canOut) h += '<div class="center" style="margin:-4px 0 10px"><span class="link" id="bUndo">押し間違い？（' + (canOut ? '退場' : '入場') + 'を取り消す）</span></div>';
   // 大きいボタン＝次にやること
   const noQR = !qrOK() && !isNakai();
-  if (noQR && !(r['入場'] && r['退場'])) h += '<div class="main lock" id="bLock"><div class="lb">' + (r['入場'] ? '出ました' : '入りました') + '<small>現場に貼ってあるQRをカメラで読むと押せます</small></div><div class="qri">' + ICON.cam + '</div></div>';
+  const shuDay = r['中止'] === '終日' && !r['入場'];   // 終日中止の日は「入りました」を出さない（押すと中止が消えて働いた日になっていた）
+  const late = !r['入場'] && !r['退場'] && localTime() >= '12:00';   // 昼を過ぎて入場が無い＝押し忘れの方が多い
+  if (shuDay) h += '<div class="main done" id="bShu"><div class="lb" style="font-size:20px">今日は終日中止です<small style="color:var(--blue)">中止をやめて作業する時はここを押す</small></div></div>';
+  else if (noQR && !(r['入場'] && r['退場'])) h += '<div class="main lock" id="bLock"><div class="lb">' + (r['入場'] || late ? '出ました' : '入りました') + '<small>現場に貼ってあるQRをカメラで読むと押せます</small></div><div class="qri">' + ICON.cam + '</div></div>';
+  else if (late) h += '<div class="main" id="bLate"><div class="lb">出ました<small>「入りました」を押し忘れた時（入った時刻も入れます）</small></div><div style="font-size:30px">›</div></div>';
   else if (!r['入場']) h += '<div class="main" id="bMain"><div class="lb">入りました<small>押すと人数を聞きます</small></div><div style="font-size:30px">›</div></div>';
   else if (!r['退場']) h += '<div class="main" id="bMain"><div class="lb">出ました<small>今日の進み・明日の予定を入れて記録</small></div><div style="font-size:30px">›</div></div>';
   else h += '<div class="main done"><div class="lb" style="font-size:20px">お疲れ様でした</div></div>';
@@ -440,8 +508,8 @@ function viewHome() {
   g += tile('bCh', 'var(--red)', ICON.umb, '中止', r['中止'] ? '✓ ' + esc(r['中止']) + '（' + esc(r['中止の理由']) + '）' : '雨・風など');
   if (f['ヒヤリハット']) g += tile('bHy', '#c98a00', ICON.bolt, 'ヒヤリハット', 'ケガ・危なかった事');
   h += '<div class="grid">' + g + '</div>';
-  if (!noQR && !r['入場'] && !r['退場']) h += '<button class="btn gray" id="bOut">出ました<small>「入りました」を押し忘れた時</small></button>';
-  h = '<div class="card note" id="qBanner" style="display:none"><b></b>件 まだ届いていません。電波が戻ると自動で送ります　<span class="link" onclick="flushOutbox()">今すぐ送る</span></div>' + h;
+  if (!noQR && !shuDay && !r['入場'] && !r['退場']) h += late ? '<button class="btn gray" id="bNow">入りました<small>今、来た時</small></button>' : '<button class="btn gray" id="bOut">出ました<small>「入りました」を押し忘れた時</small></button>';
+  h = '<div class="card note" id="qBanner" style="display:none"><b></b>件 まだ届いていません。電波が戻ると自動で送ります　<span class="link" onclick="flushOutbox(true)">今すぐ送る</span></div>' + h;
   render.keepTop = true; render(h); render.keepTop = false; sendState();
   if ($('#ms')) $$('#ms button').forEach(x => x.onclick = e => { e.stopPropagation(); const n = $('#msN'); n.textContent = Math.max(1, +n.textContent + +x.dataset.d); });
   if ($('#bLock')) $('#bLock').onclick = () => toast('「入りました」「出ました」は、現場に貼ってあるQRをカメラで読んで開いた時だけ押せます。中止・ここどうしますか・頼み事はこのままで押せます', 6000);
@@ -451,19 +519,28 @@ function viewHome() {
   if ($('#kyWarn')) $('#kyWarn').onclick = viewKY;
   if ($('#bKk')) $('#bKk').onclick = viewKakunin;
   $('#bCh').onclick = viewChushi;
-  if ($('#bOut')) $('#bOut').onclick = () => { if (f.KY && !r['作業内容']) return kyFirst(); viewTaijo(true); };
+  const forgotOut = () => { if (!qrOK() && !isNakai()) { viewHome(); toast('QRを読んでから10分たちました。もう一度、現場のQRをカメラで読んでください', 0); return; } if (f.KY && !r['作業内容']) return kyFirst(); viewTaijo(true); };
+  if ($('#bOut')) $('#bOut').onclick = forgotOut;
+  if ($('#bLate')) $('#bLate').onclick = forgotOut;
+  if ($('#bNow')) $('#bNow').onclick = () => { if (!qrOK() && !isNakai()) { viewHome(); toast('QRを読んでから10分たちました。もう一度、現場のQRをカメラで読んでください', 0); return; } confirmNinzu(S.ninzu || 1); };
+  if ($('#bShu')) $('#bShu').onclick = () => {
+    if (!confirm('終日中止を取り消して、作業しますか')) return;
+    sendQ('chushi', Object.assign(P(), { hani: 'なし' }), { '中止': '', '中止の理由': '' });
+    toast('中止を取り消しました'); viewHome();
+  };
   if ($('#bTn')) $('#bTn').onclick = () => viewRenraku('頼み事');
   if ($('#bHy')) $('#bHy').onclick = () => viewRenraku('ヒヤリハット');
 }
 async function cancel(what) {
   if (!confirm(what + 'を取り消しますか（押し間違いの時だけ）')) return;
-  const fn = what === '入場' ? 'nyujo' : 'taijo', q = outbox(), mine = q.filter(x => x.key === recKey() && x.fn === fn);
-  if (mine.length) {   // まだ窓口に届いていない時は、送る列から消すだけ
-    setOutbox(q.filter(x => mine.indexOf(x) < 0));
-    const r = Object.assign({}, S.rec || {}); r[what] = ''; if (what === '入場') r['人数'] = ''; S.rec = r; saveBoot();
-  } else {
-    busy(true); try { const r = await call('torikeshi', Object.assign(P(), { what, day: localDay() })); if (r) S.rec = r; } catch (e) { busy(false); toast(jpErr(e), 0); return; } busy(false);
-  }
+  const fn = what === '入場' ? 'nyujo' : 'taijo', q = outbox();
+  const inflight = flushing && q[0] && q[0].key === recKey() && q[0].fn === fn;   // 今まさに送っている最中の物は止められない
+  const mine = q.filter((x, i) => x.key === recKey() && x.fn === fn && !(inflight && i === 0));
+  const r = Object.assign({}, S.rec || {}); r[what] = ''; if (what === '入場') r['人数'] = '';
+  if (what === '退場' && mine.some(x => x.payload.inTime)) { r['入場'] = ''; r['人数'] = ''; }   // 押し忘れの「出ました」は入った時刻も一緒に送っていた
+  setOutbox(q.filter(x => mine.indexOf(x) < 0)); S.rec = r; saveBoot();
+  // 届いていない物は列から消すだけ。届いた（届きかけの）物は、取り消しも列で送る（電波が悪くても消えない、返事で元に戻らない）
+  if (inflight || !mine.length) sendQ('torikeshi', Object.assign(P(), { what }), {});
   LS.set('last', null); toast(what + 'を取り消しました'); viewHome();
 }
 function done(title, time, extra = '') {
@@ -489,7 +566,7 @@ function kyFirst() {
   const m = document.createElement('div'); m.id = 'sheet';
   m.innerHTML = '<div class="sh"><div class="grab"></div><h2 class="center" style="margin:6px 0 2px;color:#c77700">KYがまだです</h2><div class="small center">KYを入れないと「出ました」は押せません</div><button class="btn big" id="k1">KYを入れる</button><button class="btn gray" id="k2">戻る</button></div>';
   document.body.appendChild(m);
-  m.onclick = e => { if (e.target === m) m.remove(); };
+  sheetClose(m);
   $('#k1').onclick = () => { m.remove(); viewKY(); };
   $('#k2').onclick = () => m.remove();   // KYを入れないと「出ました」は押せない（11/1 中井様）
 }
@@ -501,13 +578,13 @@ function confirmNinzu(n) {
   const upd = () => { $('#cnOk').textContent = stepVal('cn') + '名で 入りました'; };
   $$('#cn button').forEach(b => b.addEventListener('click', () => setTimeout(upd, 0)));
   $('#cnNo').onclick = () => m.remove();
-  m.onclick = e => { if (e.target === m) m.remove(); };
+  sheetClose(m);
   $('#cnOk').onclick = () => { const v = stepVal('cn'); if (v < 1) { toast('1名以上にしてください'); return; } m.remove(); nyujoNow(v); };
 }
 function nyujoNow(n) {
   const qn = !qrOK();
-  sendQ('nyujo', Object.assign(P(), { ninzu: n, qrNone: qn }), Object.assign({ '入場': localTime(), '人数': String(n), 'QRなし': qn ? '○' : '' }, (S.rec || {})['中止'] === '半日' ? {} : { '中止': '', '中止の理由': '' }));
-  S.ninzu = n; LS.set('ninzu', n); LS.set('last', JSON.stringify({ what: '入場', ts: Date.now() }));
+  sendQ('nyujo', Object.assign(P(), { ninzu: n, qrNone: qn }), { '入場': localTime(), '人数': String(n), 'QRなし': qn ? '○' : '' });
+  S.ninzu = n; LS.set('ninzu', n); markLast('入場');
   done('入りました（' + n + '名）', S.rec['入場'], S.site.features.KY && !S.rec['作業内容'] ? '<button class="btn big" id="bKY2">続けて KY を入れる</button>' : '');
   if ($('#bKY2')) { $('#bKY2').onclick = viewKY; setTimeout(() => { if ($('#bKY2')) viewKY(true); }, 1500); }   // 入場の後はそのままKYへ（忘れ防止、11/1 中井様）
 }// ---------- KY ----------
@@ -521,11 +598,12 @@ function places(ch) {
 function viewKY(afterIn, back) {   // back＝②から戻った時の①の選択（選び直さなくてよいように）
   if (!back) viewKY.t0 = Date.now(); $('#tabbar').style.display = 'none';
   const ch = S.site.choices || {}, kouteiMap = ch['工程'] || {}, kinds = Object.keys(kouteiMap);
-  const sv = back || {};
+  let ks = null; try { ks = JSON.parse(LS.get('kysel') || 'null'); } catch (e) {}
+  const sv = back || (ks && ks.key === recKey() && ks.kt ? ks : {});   // 今日もう入れたKYを開き直した時は、選んだ物を出す（入れ直しで消えたと思わないように）
   let h = (afterIn === true ? '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">✓ 入場しました</b>続けて、作業の前にKYを入れてください</div>' : '') + '<h2>① 今日の作業内容</h2><div class="small">方角 → 部位 → 工程 の順に選んでください（無い時は「＋書く」）</div><div class="card"><h3>方角</h3>' + chips('basho', places(ch).men, { multi: true, free: true, mem: 'men', value: sv.basho }) + '</div><div class="card"><h3>部位</h3>' + chips('bui', places(ch).bui, { multi: true, free: true, mem: 'bui', value: sv.bui }) + '</div>';
   kinds.forEach(k => h += '<div class="card"><h3>工程（' + esc(k) + '）</h3>' + chips('kt_' + k, kouteiMap[k], { multi: true, free: true, mem: 'kt_' + k, value: (sv.kt || {})[k] }) + '</div>');
   h += '<button class="btn" id="next1">次へ（危険のポイント）</button><button class="btn gray" id="bBack">戻る</button>';
-  render(h); $('#bBack').onclick = viewHome;
+  render(h); $('#bBack').onclick = backTo(viewHome);
   $('#next1').onclick = () => {
     const basho = chipVal('basho'), bui = chipVal('bui'), koutei = [], keys = [], kt = {};
     kinds.forEach(k => { kt[k] = chipVal('kt_' + k); kt[k].forEach(v => { koutei.push(v); keys.push(k + '/' + v); }); });
@@ -540,7 +618,7 @@ function viewKY(afterIn, back) {   // back＝②から戻った時の①の選�
       const kk = chipVal('kk').map(i => items[+i]), mk = chipVal('mk')[0] || '';
       if (!kk.length) { $('[data-chips="kk"]').classList.add('miss'); $('[data-chips="kk"]').scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('危険のポイントを1つは選んでください', 0); return; }
       if (!mk) { $('[data-chips="mk"]').classList.add('miss'); $('[data-chips="mk"]').scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('本日の安全目標を1つ選んでください', 0); return; }
-      LS.set('kysel', JSON.stringify({ key: recKey(), basho, bui, koutei }));   // 「出ました」の進み1に入れる（手で書いた物も）
+      LS.set('kysel', JSON.stringify({ key: recKey(), basho, bui, koutei, kt }));   // 「出ました」の進み1に入れる（手で書いた物も）
       sendQ('ky', Object.assign(P(), { basho, bui, koutei, kiken: kk, mokuhyou: mk, secs: Math.round((Date.now() - (viewKY.t0 || Date.now())) / 1000) }), { '作業内容': [basho.join('・'), bui.join('・'), koutei.join('・')].filter(Boolean).join(' ') });
       done('KYを記録しました', localTime(), '<div class="card"><b>作業内容</b><br>' + esc(S.rec['作業内容']) + '<br><b>安全目標</b><br>' + esc(mk) + '</div>');
     };
@@ -563,12 +641,19 @@ function viewTaijo(forgot) {   // forgot＝「入りました」を押し忘れ�
   const ktMem = kinds.map(k => 'kt_' + k).concat(['koutei']);
   const block = (i, b0, k0, u0) => '<div class="card"' + (i === 2 ? ' id="s2box" style="display:none"' : '') + '><h3>進み ' + i + (i === 2 ? '（あれば）' : '') + '</h3>方角<span class="small">（外壁の時）</span>' + chips('s' + i + 'b', PL.men, { sub: true, value: b0, opt: true, free: true, mem: 'men' }) + '部位' + chips('s' + i + 'u', PL.bui, { sub: true, value: u0, opt: i === 2 || shu, free: true, mem: 'bui' }) + '工程' + chips('s' + i + 'k', allK, { sub: true, value: k0, opt: i === 2 || shu, free: true, mem: ['koutei'].concat(ktMem) }) + 'どこまで' + chips('s' + i + 'd', doko, { sub: true, opt: i === 2 || shu }) + '</div>';
   let h = (forgot ? '<div class="card note"><b>「入りました」が押されていません</b>入った時刻と人数も入れてください<div class="row" style="align-items:center"><div style="flex:1">入った時刻<input type="time" id="tIn" value="08:00"></div></div>人数' + stepper('tn', S.ninzu || 1) + '</div>' : '') + (shu ? '<div class="card note"><b>今日は終日中止です</b>進みは入れなくて大丈夫です</div>' : '') + '<h2>本日の進み</h2><div class="small">一番時間をかけた仕事。朝のKYの内容を入れてあります</div>' + block(1, pb, pk, pu) + '<button class="btn gray" id="more2">＋ もう1つある（進み2）</button>' + block(2);
-  if (f['明日']) h += '<div class="card"><h3>明日は</h3>' + chips('as', ['来る', '来ない']) + '<div id="anw">人数' + stepper('an', S.ninzu || 1) + '</div></div>';
-  if (f['片付け']) h += '<div class="card"><h3>帰る前に</h3>' + chips('kz', ['全部よし（片付け・戸締り・火の元）']) + '</div>';
-  h += '<button class="btn big ok" id="go">出ました（記録して送る）</button><div class="small center">進み1・明日・帰る前の確認を入れると送れます</div><button class="btn gray" id="bBack">戻る</button>';
-  render(h); $('#bBack').onclick = viewHome;
+  const r0 = S.rec || {}, as0 = r0['明日'] || '';   // 雨の時に答えた明日の予定を最初から入れておく
+  if (f['明日']) h += '<div class="card"><h3>明日は</h3>' + chips('as', ['来る', '来ない', 'まだ分からない'], { value: as0 }) + '<div id="anw"' + (as0 && as0 !== '来る' ? ' style="display:none"' : '') + '>人数' + stepper('an', +r0['明日の人数'] || S.ninzu || 1) + '</div></div>';
+  if (f['片付け']) h += '<div class="card"><h3>帰る前に</h3>' + chips('kz', ['全部よし（片付け・戸締り・火の元）', 'できていない所がある']) + '<div id="kzNote" class="small"></div></div>';
+  h += '<button class="btn big ok" id="go">出ました（記録して送る）</button><div class="small center">進み1・明日・帰る前の確認を入れると送れます</div><div style="height:28px"></div><button class="btn gray" id="bBack">戻る</button>';
+  render(h); $('#bBack').onclick = backTo(viewHome);
   $('#more2').onclick = () => { $('#s2box').style.display = 'block'; $('#more2').remove(); };
-  if ($('[data-chips="as"]')) $('[data-chips="as"]').addEventListener('chipchange', () => { $('#anw').style.display = chipVal('as')[0] === '来ない' ? 'none' : 'block'; });
+  if ($('[data-chips="as"]')) $('[data-chips="as"]').addEventListener('chipchange', () => { $('#anw').style.display = (chipVal('as')[0] || '来る') === '来る' ? 'block' : 'none'; });
+  viewTaijo.kz = '';
+  if ($('[data-chips="kz"]')) $('[data-chips="kz"]').addEventListener('chipchange', () => {   // できていない所は、ひとこと書いてもらう（うそで「全部よし」を押さなくてよいように）
+    if (chipVal('kz')[0] !== 'できていない所がある') { viewTaijo.kz = ''; $('#kzNote').textContent = ''; return; }
+    const s = prompt('どこができていませんか（例：2階の窓の鍵が閉まらない）') || '';
+    viewTaijo.kz = s.trim(); $('#kzNote').textContent = s.trim() ? '→ ' + s.trim() : '';
+  });
   $('#go').onclick = async () => {
     if (!viewTaijo.ok) { viewHome(); toast('QRを読んでから10分たちました。もう一度、現場のQRをカメラで読んでください', 0); return; }
     // 入れていない所があれば、そこへ動かして赤く光らせる
@@ -592,17 +677,19 @@ function viewTaijo(forgot) {   // forgot＝「入りました」を押し忘れ�
     }
     const susumi = [1, 2].map(i => ({ basho: chipVal('s' + i + 'b')[0] || '', bui: chipVal('s' + i + 'u')[0] || '', koutei: chipVal('s' + i + 'k')[0] || '', dokomade: chipVal('s' + i + 'd')[0] || '' })).filter(s => s.koutei || s.basho || s.bui);
     const asV = f['明日'] ? (chipVal('as')[0] || '') : '';
-    const p = Object.assign(P(), { susumi, ashita: asV, ashitaNinzu: asV === '来る' && $('#an') ? stepVal('an') : '', katazuke: f['片付け'] ? '全部よし' : '', qrNone: !qrOK() });
+    const p = Object.assign(P(), { susumi, ashita: asV, ashitaNinzu: asV === '来る' && $('#an') ? stepVal('an') : '', katazuke: !f['片付け'] ? '' : chipVal('kz')[0] === 'できていない所がある' ? 'できていない：' + (viewTaijo.kz || '（書いていない）') : '全部よし', qrNone: !qrOK() });
     const patch = { '退場': localTime() };
     if (forgot) { p.inTime = $('#tIn').value; p.ninzu = stepVal('tn'); patch['入場'] = p.inTime; patch['人数'] = String(p.ninzu); S.ninzu = p.ninzu; LS.set('ninzu', p.ninzu); }
     sendQ('taijo', p, patch);
-    LS.set('last', JSON.stringify({ what: '退場', ts: Date.now() })); done('出ました お疲れ様でした', S.rec['退場']);
+    markLast('退場'); done('出ました お疲れ様でした', S.rec['退場']);
   };
 }
 // ---------- 中止 ----------
 function viewChushi() {
-  render('<h2>中止</h2><h3>どのくらい</h3>' + chips('hn', ['終日', '半日']) + '<h3>理由</h3>' + chips('ry', ['雨', '風', 'その他']) + '<input type="text" id="memo" placeholder="ひとこと（なくてもよい）"><button class="btn red big" id="go">中止を中井に知らせる</button><button class="btn gray" id="bBack">戻る</button>');
-  $('#bBack').onclick = viewHome;
+  const r = S.rec || {};
+  render('<h2>中止</h2>' + (r['中止'] ? '<div class="card note"><b>今：' + esc(r['中止']) + '中止（' + esc(r['中止の理由']) + '）</b>押し間違えた時・作業することになった時は<button class="btn gray" id="chNo">中止を取り消す</button></div>' : '') + '<h3>どのくらい</h3>' + chips('hn', ['終日', '半日']) + '<h3>理由</h3>' + chips('ry', ['雨', '風', 'その他']) + '<input type="text" id="memo" maxlength="100" placeholder="ひとこと（なくてもよい）"><button class="btn red big" id="go">中止を中井に知らせる</button><div style="height:20px"></div><button class="btn gray" id="bBack">戻る</button>');
+  $('#bBack').onclick = backTo(viewHome);
+  if ($('#chNo')) $('#chNo').onclick = () => { if (!confirm('中止を取り消しますか')) return; sendQ('chushi', Object.assign(P(), { hani: 'なし' }), { '中止': '', '中止の理由': '' }); toast('中止を取り消しました'); viewHome(); };
   $('#go').onclick = async () => {
     const hani = chipVal('hn')[0], riyuu = chipVal('ry')[0]; if (!hani || !riyuu) { toast('どのくらい・理由を選んでください'); return; }
     sendQ('chushi', Object.assign(P(), { hani, riyuu, memo: $('#memo').value.trim() }), { '中止': hani, '中止の理由': riyuu });
@@ -621,8 +708,8 @@ async function loadMyHist(only) {
 function viewKakunin() {
   const ch = S.site.choices || {}, PL = places(ch);
   const qid = 'k' + Date.now() + Math.random().toString(36).slice(2, 5);   // 画面を開いた時に1回だけ作る（送り直しても2件にならない）
-  render('<h2>📷 ここどうしますか</h2><h3>場所（方角）</h3>' + chips('bs', PL.men, { sub: true, opt: true, free: true, mem: 'men' }) + '<h3>場所（部位）</h3>' + chips('bu', PL.bui, { sub: true, opt: true, free: true, mem: 'bui' }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><button class="btn gray" id="bBack">戻る</button><h2 style="margin-top:22px">これまでのやりとり</h2><div id="hist"><div class="small">読み込み中…</div></div>');
-  $('#bBack').onclick = viewHome;
+  render('<h2>📷 ここどうしますか</h2><h3>場所（方角）</h3>' + chips('bs', PL.men, { sub: true, opt: true, free: true, mem: 'men' }) + '<h3>場所（部位）</h3>' + chips('bu', PL.bui, { sub: true, opt: true, free: true, mem: 'bui' }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><div style="height:20px"></div><button class="btn gray" id="bBack">戻る</button><h2 style="margin-top:22px">これまでのやりとり</h2><div id="hist"><div class="small">読み込み中…</div></div>');
+  $('#bBack').onclick = backTo(viewHome);
   loadMyHist();
   $('#go').onclick = async () => {
     if (!PHOTOS.length && !$('#tx').value.trim()) { toast('写真か文を入れてください'); return; }
@@ -634,8 +721,8 @@ function viewKakunin() {
 function viewRenraku(shurui) {
   const hy = shurui === 'ヒヤリハット';
   const qid = 'r' + Date.now() + Math.random().toString(36).slice(2, 5);
-  render('<h2>' + (hy ? '⚡ ヒヤリハット' : '📝 中井に頼み事') + '</h2>' + (hy ? '<div class="card note"><b>ケガをした時は、まず電話</b><a class="btn red" style="text-decoration:none" href="tel:' + esc(S.boot.phone) + '">📞 中井に電話 ' + esc(S.boot.phone) + '</a>' + chips('kg', ['ケガあり', 'ケガなし']) + '</div>' : '') + '<textarea id="tx" placeholder="' + (hy ? '何があったか（声でも）' : '明日○○を持ってきて、など（声でも）') + '"></textarea>' + photoBox(1) + '<button class="btn big ok" id="go">送る</button><button class="btn gray" id="bBack">戻る</button>');
-  $('#bBack').onclick = viewHome;
+  render('<h2>' + (hy ? '⚡ ヒヤリハット' : '📝 中井に頼み事') + '</h2>' + (hy ? '<div class="card note"><b>ケガをした時は、まず電話</b><a class="btn red" style="text-decoration:none" href="tel:' + esc(S.boot.phone) + '">📞 中井に電話 ' + esc(S.boot.phone) + '</a>' + chips('kg', ['ケガあり', 'ケガなし']) + '</div>' : '') + '<textarea id="tx" placeholder="' + (hy ? '何があったか（声でも）' : '明日○○を持ってきて、など（声でも）') + '"></textarea>' + photoBox(1) + '<button class="btn big ok" id="go">送る</button><div style="height:20px"></div><button class="btn gray" id="bBack">戻る</button>');
+  $('#bBack').onclick = backTo(viewHome);
   $('#go').onclick = async () => {
     const tx = $('#tx').value.trim(); if (!tx && !PHOTOS.length) { toast('文か写真を入れてください'); return; }
     busy(true); try { await call('renraku', Object.assign(P(), { qid, shurui, text: tx, photos: PHOTOS, kega: hy && chipVal('kg')[0] === 'ケガあり' })); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
@@ -658,14 +745,17 @@ function bdVal() {
 }
 function viewShinki() {
   const opt = (n, a, b) => '<option value="">' + n + '</option>' + Array.from({ length: b - a + 1 }, (_, i) => '<option>' + (a + i) + '</option>').join('');
-  const comp = !S.company ? '<div class="card"><h3>あなたの会社</h3>' + chips('nco', visibleCompanies().map(c => c.name)) + '<input type="text" id="ncoOther" placeholder="一覧に無い時は会社名を書く"></div>' : '';
+  viewShinki.qid = 'n' + Date.now() + Math.random().toString(36).slice(2, 5);   // 電波の送り直しで2件にならないように
+  // 会社はいつも聞く（職長の携帯を借りた応援の人が、職長の会社で記録されないように）。職長の会社を最初から選んでおく
+  const comp = '<div class="card"><h3>あなたの会社（給料をもらう会社）</h3>' + chips('nco', visibleCompanies().map(c => c.name), { value: S.company }) + '<input type="text" id="ncoOther" placeholder="一覧に無い時は会社名を書く"></div>';
   $('#tabbar').style.display = S.company ? 'flex' : 'none';
   render('<h2>🆕 新規入場（本人が入れてください）</h2><div class="small">血圧・病気・健康診断は紙に書きます</div>' + comp + '<div class="card">氏名<input type="text" id="nm" placeholder="例：大畑 陽">ふりがな<input type="text" id="kn" placeholder="おおはた よう">生年月日<div class="row" id="bdw"><select id="bdE"><option value="">元号</option><option>昭和</option><option>平成</option></select><select id="bdY">' + opt('年', 1, 64) + '</select><select id="bdM">' + opt('月', 1, 12) + '</select><select id="bdD">' + opt('日', 1, 31) + '</select></div><div class="small" id="chkMsg">生年月日まで入れると、前に入れた内容を探します</div></div><div id="form"></div><button class="btn gray" id="bBack">戻る</button>');
   shinkiForm(null);
   $('#bBack').onclick = () => S.company ? viewHome() : viewWho();
   const look = async () => {
     const nm = $('#nm').value.trim(), bd = bdVal(); if (!nm || !bd) return;
-    let old = null; try { old = await call('getShinki', nm, bd, S.siteId); } catch (e) { return; }
+    if (look.last === nm + '|' + bd) return; look.last = nm + '|' + bd;   // 同じ名前・生年月日で何度も聞かない
+    let old = null; try { old = await call('getShinki', nm, bd, S.siteId); } catch (e) { $('#chkMsg').textContent = jpErr(e); return; }
     if (old) shinkiForm(old); else $('#chkMsg').textContent = '初めての方です。下の欄を入れてください';
   };
   $('#bdE').addEventListener('change', () => { const mx = $('#bdE').value === '平成' ? 31 : 64, cur = $('#bdY').value; $('#bdY').innerHTML = opt('年', 1, mx); if (+cur <= mx) $('#bdY').value = cur; });
@@ -674,21 +764,25 @@ function viewShinki() {
 function shinkiForm(old) {
   const o = old || {}, v = k => o[k] || '', arr = k => (o[k] || '').split('、').filter(Boolean);
   let h = old ? '<div class="card note"><b>前に入れた内容があります（' + esc(o['日時'].slice(0, 10)) + '）</b>変わりが無ければ、下の「変わりなし」を押すだけです。<button class="btn ok" id="same">変わりなし（このまま送る）</button></div>' : '';
-  h += '<div class="card">性別' + chips('sx', ['男', '女'], { value: v('性別') }) + '職種' + chips('sk', ['塗装工', '防水工', 'シーリング工', '足場工', 'その他'], { value: v('職種') }) + '経験年数<input type="number" id="kn2" value="' + esc(v('経験年数')) + '" placeholder="年">';
+  h += '<div class="card">性別' + chips('sx', ['男', '女'], { value: v('性別') }) + '職種' + chips('sk', ['塗装工', '防水工', 'シーリング工', '足場工', 'その他'], { value: v('職種') }) + '経験年数<input type="text" inputmode="numeric" id="kn2" value="' + esc(v('経験年数')) + '" placeholder="年">';
   h += '緊急連絡先の続柄' + chips('zk', ['配偶者', '親', '子', 'その他'], { value: v('緊急連絡先_続柄') }) + '緊急連絡先の名前<input type="text" id="en" value="' + esc(v('緊急連絡先_名前')) + '">緊急連絡先の電話<input type="tel" id="et" value="' + esc(v('緊急連絡先_電話')) + '">雇用主（給料をもらう会社）<input type="text" id="ky" value="' + esc(v('雇用主') || S.company || '') + '"></div>';
   h += '<div class="card">自営業・一人親方ですか' + chips('jj', ['はい', 'いいえ'], { value: v('自営業・一人親方') }) + '労災特別加入' + chips('rs', ['加入済', '未加入', '該当なし'], { value: v('労災特別加入') }) + '雇用通知書' + chips('kt', ['もらっている', 'いない'], { value: v('雇用通知書') }) + '建退共' + chips('kk', ['加入済', '未加入'], { value: v('建退共') }) + '</div>';
   h += '<div class="card">免許' + chips('mn', ['移動式クレーン', '電気工事士', 'その他', 'なし'], { multi: true, sub: true, value: arr('免許') }) + '技能講習' + chips('gk', ['足場の組立て等', '有機溶剤', '石綿', 'その他', 'なし'], { multi: true, sub: true, value: arr('技能講習') }) + '特別教育' + chips('tk', ['フルハーネス', '高所作業車（10m未満）', '研削砥石', '丸のこ', '振動工具', '職長・安全衛生責任者', '石綿', 'その他', 'なし'], { multi: true, sub: true, value: arr('特別教育') }) + '</div>';
   h += '<div class="card"><h3>入場時の誓約（読んでください）</h3><ol class="ol">' + SEIYAKU.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol>' + chips('sy', ['全部読んで、受けました']) + '</div><button class="btn big ok" id="send">新規入場を送る</button>';
   $('#form').innerHTML = h;
-  const collect = same => ({ '氏名': $('#nm').value.trim(), 'ふりがな': $('#kn').value.trim(), '生年月日': bdVal(), '性別': chipVal('sx')[0] || '', '職種': chipVal('sk')[0] || '', '経験年数': $('#kn2').value, '緊急連絡先_続柄': chipVal('zk')[0] || '', '緊急連絡先_名前': $('#en').value.trim(), '緊急連絡先_電話': $('#et').value.trim(), '雇用主': $('#ky').value.trim(), '自営業・一人親方': chipVal('jj')[0] || '', '労災特別加入': chipVal('rs')[0] || '', '雇用通知書': chipVal('kt')[0] || '', '建退共': chipVal('kk')[0] || '', '免許': chipVal('mn'), '技能講習': chipVal('gk'), '特別教育': chipVal('tk'), '誓約': chipVal('sy')[0] ? '○' : '', '変わりなし': same ? '○' : '' });
+  const collect = same => ({ '氏名': $('#nm').value.trim(), 'ふりがな': $('#kn').value.trim(), '生年月日': bdVal(), '性別': chipVal('sx')[0] || '', '職種': chipVal('sk')[0] || '', '経験年数': $('#kn2').value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[^\d.]/g, ''), '緊急連絡先_続柄': chipVal('zk')[0] || '', '緊急連絡先_名前': $('#en').value.trim(), '緊急連絡先_電話': $('#et').value.trim(), '雇用主': $('#ky').value.trim(), '自営業・一人親方': chipVal('jj')[0] || '', '労災特別加入': chipVal('rs')[0] || '', '雇用通知書': chipVal('kt')[0] || '', '建退共': chipVal('kk')[0] || '', '免許': chipVal('mn'), '技能講習': chipVal('gk'), '特別教育': chipVal('tk'), '誓約': chipVal('sy')[0] ? '○' : '', '変わりなし': same ? '○' : '' });
   const send = async same => {
     const d = collect(same);
-    const myCo = S.company || ($('#ncoOther') && $('#ncoOther').value.trim()) || chipVal('nco')[0] || '';
-    if (!myCo) { toast('あなたの会社を選んでください', 0); $('[data-chips="nco"]').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-    if (!d['氏名'] || !d['生年月日']) { toast('氏名と生年月日を入れてください', 0); return; }
-    if (!d['誓約']) { toast('誓約を読んで「受けました」を押してください'); $('[data-chips="sy"]').scrollIntoView(); return; }
-    if (!same && (!d['性別'] || !d['職種'] || !d['緊急連絡先_電話'])) { toast('性別・職種・緊急連絡先の電話は必ず入れてください'); return; }
-    busy(true); try { await call('shinki', Object.assign(P(), { company: myCo, data: d })); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
+    const myCo = ($('#ncoOther') && $('#ncoOther').value.trim()) || chipVal('nco')[0] || S.company || '';
+    const miss = (sel, msg) => { const el = $(sel); if (el) { el.classList.add('miss'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } toast(msg, 0); };
+    $$('.miss').forEach(x => x.classList.remove('miss'));
+    if (!myCo) return miss('[data-chips="nco"]', 'あなたの会社を選んでください');
+    if (!d['氏名'] || !d['生年月日']) return miss('#bdw', '氏名と生年月日を入れてください');
+    if (!same && !d['性別']) return miss('[data-chips="sx"]', '性別を選んでください');
+    if (!same && !d['職種']) return miss('[data-chips="sk"]', '職種を選んでください');
+    if (!same && !d['緊急連絡先_電話']) { $('#et').style.borderColor = 'var(--red)'; return miss('#et', '緊急連絡先の電話を入れてください'); }
+    if (!d['誓約']) return miss('[data-chips="sy"]', '誓約を読んで「受けました」を押してください');
+    busy(true); try { await call('shinki', Object.assign(P(), { company: myCo, data: d, qid: viewShinki.qid })); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
     busy(false); done('新規入場を送りました', d['氏名'] + ' さん');
   };
   if ($('#same')) $('#same').onclick = () => send(true);
@@ -720,9 +814,17 @@ async function adminStart(keep) {   // keep＝保存の後など、見ていた�
   $('#tabbar').style.display = 'none';
   if (!A.pin) return pinScreen();
   if (!A.unlocked && LS.get('fid')) {   // Face ID を使う携帯：開いた時に1回だけ顔で確かめる
-    render('<div class="card center" style="padding:28px 16px"><h2>中井の画面</h2><button class="btn big" id="fidGo">Face ID で開く</button><span class="link" id="fidPin">暗証番号で開く</span></div>'); $('#top').innerHTML = '';
-    $('#fidGo').onclick = async () => { try { await fidCheck(); A.unlocked = true; adminStart(); } catch (e) { toast('Face ID で開けませんでした。もう一度押すか、暗証番号で開いてください', 0); } };
-    $('#fidPin').onclick = () => { A.pin = ''; LS.set('pin', null); pinScreen(); };
+    render('<div class="card center" style="padding:28px 16px"><h2>中井の画面</h2><button class="btn big" id="fidGo">Face ID で開く</button><span class="link" id="fidPin">暗証番号で開く</span><div id="fidStop" style="margin-top:14px"></div></div>'); $('#top').innerHTML = '';
+    $('#fidGo').onclick = async () => {
+      try { await fidCheck(); A.unlocked = true; adminStart(); }
+      catch (e) {
+        A.fidFail = (A.fidFail || 0) + 1;
+        toast('Face ID で開けませんでした。もう一度押すか、暗証番号で開いてください', 0);
+        // 携帯の設定で鍵が消えた時などは何度やっても開かない → やめる道を出す
+        if (A.fidFail >= 2) { $('#fidStop').innerHTML = '<span class="link" id="fidOff">Face ID をやめる（次から暗証番号）</span>'; $('#fidOff').onclick = () => { LS.set('fid', null); LS.set('fidNo', '1'); pinScreen(); }; }
+      }
+    };
+    $('#fidPin').onclick = () => pinScreen();   // 合鍵は消さない（新しい合鍵が取れた時だけ差し替える）
     return;
   }
   A.unlocked = true;
@@ -734,12 +836,13 @@ async function adminStart(keep) {   // keep＝保存の後など、見ていた�
   if ($('#toHome')) $('#toHome').onclick = () => reboot(true);
   $('#top').innerHTML = '';
   adminTab(A.tab);
-  if (y) window.scrollTo(0, y);
-  if (!LS.get('fid') && !LS.get('fidNo') && await fidCan()) {   // 一度だけ聞く
+  if (!A.fidAsked && !LS.get('fid') && !LS.get('fidNo') && await fidCan()) {   // 開いている間に1回だけ聞く
+    A.fidAsked = true;
     render('<div class="card note"><b>次から Face ID で開けるようにしますか</b>暗証番号を入れなくても、顔で開けます<div class="row"><button class="btn" id="fidYes">使う</button><button class="btn gray" id="fidNo">使わない</button></div></div>', '#top');
-    $('#fidYes').onclick = async () => { try { await fidMake(); $('#top').innerHTML = ''; toast('次から Face ID で開きます'); } catch (e) { toast('Face ID を設定できませんでした（携帯の設定で Face ID が使えるか見てください）', 0); } };
+    $('#fidYes').onclick = async () => { try { await fidMake(); $('#top').innerHTML = ''; toast('次から Face ID で開きます'); } catch (e) { LS.set('fidNo', '1'); $('#top').innerHTML = ''; toast('Face ID を設定できませんでした。暗証番号のまま使います', 0); } };
     $('#fidNo').onclick = () => { LS.set('fidNo', '1'); $('#top').innerHTML = ''; };
   }
+  if (y) window.scrollTo(0, y);
 }
 // 記録を直す窓（中井様だけ）。変えた欄だけ送る
 function editRec(r, isNew) {
@@ -747,12 +850,13 @@ function editRec(r, isNew) {
   const cos = A.data.companies || [];
   m.innerHTML = '<div class="sh esh"><div class="esc"><div class="grab"></div><h2 class="center" style="margin:4px 0">' + (isNew ? '押し忘れの記録を足す' : '記録を直す') + '</h2><div class="small center">' + jpDate(r.date) + '</div>'
     + (isNew ? '<h3>会社</h3>' + chips('eCo', cos.map(c => c.name), { free: true, sub: true }) + '<div id="eFmw"></div>' : '<div class="card"><b>' + esc(r.company) + '　' + esc(r.foreman) + '</b></div>')
-    + '入場<input type="time" id="eIn" value="' + esc(r.in) + '">退場<input type="time" id="eOut" value="' + esc(r.out) + '">' + (r.out ? '<span class="mini" id="eOutX">退場を消す</span>' : '') + '<br>人数<input type="number" inputmode="numeric" min="1" id="eN" value="' + esc(r.ninzu) + '">中止' + chips('eCh', ['なし', '終日', '半日'], { value: r.chushi || 'なし' }) + '<div id="eRyw"' + (r.chushi ? '' : ' style="display:none"') + '>理由' + chips('eRy', ['雨', '風', 'その他'], { value: r.riyuu, opt: true }) + '</div></div>'
+    + '入場<input type="time" id="eIn" value="' + esc(r.in) + '">' + (r.in ? '<span class="mini" id="eInX">入場を消す</span><br>' : '') + '退場<input type="time" id="eOut" value="' + esc(r.out) + '">' + (r.out ? '<span class="mini" id="eOutX">退場を消す</span>' : '') + '<div class="small">退場が朝6時より前なら、夜をまたいだ退場として記録します</div>人数<input type="number" inputmode="numeric" min="1" id="eN" value="' + esc(r.ninzu) + '">中止' + chips('eCh', ['なし', '終日', '半日'], { value: r.chushi || 'なし' }) + '<div id="eRyw"' + (r.chushi ? '' : ' style="display:none"') + '>理由' + chips('eRy', ['雨', '風', 'その他'], { value: r.riyuu, opt: true }) + '</div></div>'
     + '<div class="efoot"><button class="btn gray" id="eNo">やめる</button><button class="btn" id="eOk">保存する</button></div></div>';
   document.body.appendChild(m);
-  m.onclick = e => { if (e.target === m) m.remove(); };   // 外を押すと閉じる
+  sheetClose(m);   // 外を押すと閉じる
   $('#eNo').onclick = () => m.remove();
   if ($('#eOutX')) $('#eOutX').onclick = () => { $('#eOut').value = ''; };
+  if ($('#eInX')) $('#eInX').onclick = () => { $('#eIn').value = ''; };
   const fmBox = () => { const c = cos.find(x => x.name === chipVal('eCo')[0]); $('#eFmw').innerHTML = chipVal('eCo')[0] ? '<h3>職長</h3>' + chips('eFm', c ? c.foremen : [], { free: true, sub: true }) : ''; };
   if (isNew) $('[data-chips="eCo"]').addEventListener('chipchange', fmBox);
   $('[data-chips="eCh"]').addEventListener('chipchange', () => { const nashi = (chipVal('eCh')[0] || 'なし') === 'なし'; $('#eRyw').style.display = nashi ? 'none' : 'block'; if (nashi) $$('[data-chips="eRy"] .chip').forEach(c => c.classList.remove('on')); });   // 中止なしの時は理由を出さず、選んでいた理由も外す（11/1 中井様）
@@ -762,7 +866,7 @@ function editRec(r, isNew) {
     const x = { siteId: r.siteId, date: r.date, company: isNew ? (chipVal('eCo')[0] || '') : r.company, foreman: isNew ? (chipVal('eFm')[0] || '') : r.foreman };
     if (!x.company || !x.foreman) { toast('会社と職長を選んでください', 0); return; }
     if (now.chushi && !now.riyuu) { toast('中止の理由を選んでください', 0); return; }
-    if (now.in && now.out && now.out <= now.in) { toast('退場が入場より前になっています', 0); return; }
+    if (now.in && now.out && now.out <= now.in && !(now.out < '06:00')) { toast('退場が入場より前になっています', 0); return; }
     if (now.in && !(+now.ninzu >= 1)) { toast('人数を1名以上にしてください', 0); return; }
     if (isNew) { if (!now.in && !now.out && !now.chushi) { toast('入場・退場・中止のどれかを入れてください', 0); return; } x.isNew = true; Object.keys(now).forEach(k => { if (now[k]) x[k] = now[k]; }); }
     else { Object.keys(now).forEach(k => { if (String(now[k]) !== String(r[k] || '')) x[k] = now[k]; }); if (Object.keys(x).length === 4) { m.remove(); toast('変わっていません'); return; } }
@@ -770,7 +874,7 @@ function editRec(r, isNew) {
   };
 }
 // 1人ずつのカード（入退場・KY・進み・明日）。行を押すと直す窓
-function recCard(r, i) {
+function recCard(r, i, kyOn) {
   const pill = r.chushi ? '<span class="pill stop">' + esc(r.chushi) + '中止（' + esc(r.riyuu) + '）</span>' : r.out ? '<span class="pill out">退場済</span>' : r.in ? '<span class="pill in">作業中</span>' : '<span class="pill">まだ</span>';
   let h = '<div class="rc rec-edit" data-edit="' + i + '"><div class="rc-h"><b>' + esc(r.company) + '　' + esc(r.foreman) + '</b>' + pill + '</div>';
   h += '<div class="rc-t"><span><i>入</i>' + esc(r.in || '—') + (r.qrIn ? '<i>QRなし</i>' : '') + '</span><span><i>出</i>' + esc(r.out || '—') + (r.qrOut ? '<i>QRなし</i>' : '') + '</span>' + (r.ninzu ? '<span>' + esc(r.ninzu) + '名</span>' : '') + '</div>';
@@ -779,7 +883,7 @@ function recCard(r, i) {
     h += '<div class="rc-sec"><div class="rc-lb">KY' + (r.kysec ? '（' + esc(r.kysec) + '秒で入力）' : '') + '</div><div class="rc-w">' + String(r.sagyou).split(' ').filter(Boolean).map(w => '<span>' + esc(w) + '</span>').join('') + '</div>'
       + (kk.length ? '<ol class="rc-kk">' + kk.map((k, j) => '<li><b>⚠ ' + esc(k) + '</b><span>→ ' + esc(ko[j] || '') + '</span></li>').join('') + '</ol>' : '')
       + (r.mokuhyou ? '<div class="rc-mk">🎯 ' + esc(r.mokuhyou) + '</div>' : '') + '</div>';
-  } else if (r.in && r.chushi !== '終日') h += '<div class="rc-sec rc-ng">⚠ KYまだ</div>';
+  } else if (kyOn && r.in && r.chushi !== '終日') h += '<div class="rc-sec rc-ng">⚠ KYまだ</div>';
   if ((r.susumi || []).length) h += '<div class="rc-sec"><div class="rc-lb">今日の進み</div>' + r.susumi.map(s => '<div class="rc-w">' + [s.basho, s.bui, s.koutei].filter(Boolean).map(w => '<span>' + esc(w) + '</span>').join('') + (s.dokomade ? '<span class="k">' + esc(s.dokomade) + '</span>' : '') + '</div>').join('<div style="height:5px"></div>') + '</div>';
   if (r.ashita) h += '<div class="rc-sec"><span class="rc-lb">明日</span>　<b>' + esc(r.ashita) + '</b>' + (r.ashita === '来る' && r.ashitaN ? '　' + esc(r.ashitaN) + '名' : '') + (r.katazuke ? '　<span class="small">片付け：' + esc(r.katazuke) + '</span>' : '') + '</div>';
   h += (r.warn || []).map(x => '<div class="rc-warn">⚠ ' + esc(x) + '</div>').join('');
@@ -792,7 +896,7 @@ function adminTab(tab) {
     // 過去の日へすぐ飛べるように：日付を選ぶ欄＋よく使う日のボタン（11/1 中井様「前の日をずっと押すのは操作性が悪い」）
     h += '<div class="card dbar"><div class="row"><button class="btn gray" id="dPrev" aria-label="前の日">◀</button><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><button class="btn gray" id="dNext" aria-label="次の日"' + (d.today >= d.real ? ' disabled' : '') + '>▶</button></div><div class="qr-chips">' + [['今日', 0], ['昨日', -1], ['おととい', -2], ['1週間前', -7], ['1か月前', -30]].map(x => '<span data-jump="' + x[1] + '">' + x[0] + '</span>').join('') + '</div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2><div class="small">カードを押すと、時刻・人数・中止を直せます</div>';
     A.recs = [];
-    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => recCard(r, A.recs.push(r) - 1)).join('') : '<div class="small">まだ誰も押していません</div>') + '<div style="margin-top:12px"><span class="link" data-add="' + esc(s.id) + '">＋ 押し忘れの記録を足す</span></div></div>'; });
+    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => recCard(r, A.recs.push(r) - 1, s.features.KY)).join('') : '<div class="small">まだ誰も押していません</div>') + '<div style="margin-top:12px"><span class="link" data-add="' + esc(s.id) + '">＋ 押し忘れの記録を足す</span></div></div>'; });
     h += '<button class="btn gray" id="reload">更新</button>';
   }
   if (tab === '返事') {
@@ -822,7 +926,7 @@ function adminTab(tab) {
   $$('[data-add]').forEach(x => x.onclick = () => editRec({ siteId: x.dataset.add, date: A.data.today, company: '', foreman: '', in: '', out: '', ninzu: '', chushi: '', riyuu: '' }, true));
   $$('[data-qt]').forEach(x => x.onclick = () => { const ta = x.closest('.card').querySelector('textarea'); if (ta.value.indexOf(x.dataset.qt) >= 0) return; ta.value =(ta.value ? ta.value + ' ' : '') + x.dataset.qt; });
   const loadAdminImgs = () => {
-    $$('img[data-p]:not([src])').forEach(async im => { try { im.src = await call('adminPhoto', A.pin, im.dataset.p); im.onclick = () => showPhoto(im.src); } catch (e) { im.alt = '×'; } });
+    $$('img[data-p]:not([src]):not([data-ld])').forEach(async im => { im.dataset.ld = '1'; try { im.src = await call('adminPhoto', A.pin, im.dataset.p); im.onclick = () => showPhoto(im.src); } catch (e) { im.alt = '×'; } });
     $$('span[data-p]').forEach(b => b.onclick = async () => { busy(true, '写真を読んでいます…'); try { showPhoto(await call('adminPhoto', A.pin, b.dataset.p)); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
   };
   loadAdminImgs();
