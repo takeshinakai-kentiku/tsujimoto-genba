@@ -148,6 +148,29 @@ h3{font-size:16px;color:#3a3a3c}
 .newbtn{background:#fff4e5;border:2px solid var(--orange);color:#8a3500}
 input[type=time],input[type=date]{-webkit-appearance:none;appearance:none;display:block;max-width:100%;min-height:54px;text-align:left}
 .rec-edit{cursor:pointer}.rec-edit:active{background:#f2f2f7}
+/* 中井の画面：1人ずつのカード（11/1 中井様「KYの後の見た目が悪い」） */
+.rc{background:#fff;border-radius:16px;padding:14px;margin:10px 0 0;border:1px solid var(--line)}
+.rc-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rc-h b{font-size:19px}
+.rc-t{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 2px;font-size:17px;font-weight:700}
+.rc-t span{white-space:nowrap}.rc-t i{font-style:normal;font-size:13px;color:var(--gray);font-weight:600;margin-right:3px}
+.rc-sec{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.rc-lb{font-size:13px;font-weight:700;color:var(--gray);margin-bottom:3px}
+.rc-w{display:flex;flex-wrap:wrap;gap:5px}
+.rc-w span{background:#e5f0ff;color:#003e8f;border-radius:9px;padding:4px 9px;font-size:15px;font-weight:600}
+.rc-w span.k{background:#fff4e5;color:#8a3500}
+.rc-kk{margin:4px 0 0;padding:0;list-style:none}
+.rc-kk li{padding:6px 0 6px 10px;border-left:4px solid var(--orange);margin:6px 0;background:#fffaf3;border-radius:0 8px 8px 0}
+.rc-kk li b{display:block;font-size:16px}.rc-kk li span{font-size:15px;color:#1e6b33}
+.rc-mk{margin-top:6px;font-size:16px;font-weight:600}
+.rc-warn{color:#b45309;font-size:14px;font-weight:700;margin-top:4px}
+.rc-ng{color:var(--red);font-size:15px;font-weight:700}
+.rc-ed{display:inline-block;margin-top:10px;color:var(--blue);font-weight:700;font-size:15px}
+#sheet .sh.esh{max-height:88dvh;display:flex;flex-direction:column;padding-bottom:0}
+#sheet .esh .esc{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex:1;padding-bottom:8px}
+#sheet .esh .efoot{display:flex;gap:10px;padding:8px 0 calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line)}
+#sheet .esh .efoot .btn{margin:0;flex:1}
+.mini{display:inline-block;color:var(--red);font-size:15px;font-weight:700;margin:-4px 0 10px}
 </style>
 </head>
 <body>
@@ -189,7 +212,7 @@ const ICON = {
 async function call(fn, ...args) {
   const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 60000);   // 60秒で打ち切る（写真付きは時間がかかる）（電波が切れても止まったままにしない）
   let r; try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn, args }), signal: ac.signal }); } catch (e) { throw new Error('電波が弱くて送れませんでした（' + (e.name === 'AbortError' ? 'timeout' : 'network') + '）'); } finally { clearTimeout(tm); }
-  const j = await r.json();
+  let j; try { j = await r.json(); } catch (e) { throw new Error('記録の窓口から返事がありませんでした。少し待ってもう一度押してください'); }
   if (j.error) throw new Error(j.error);
   return j.result;
 }
@@ -201,10 +224,14 @@ function isNakai() { return !!LS.get('pin'); }   // 中井の画面の暗証番�
 function busy(on, t) { let b = $('#busy'); if (!on) { b && b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'busy'; b.innerHTML = '<div class="bx"><div class="spin"></div><div class="bt"></div></div>'; document.body.appendChild(b); } b.querySelector('.bt').textContent = t || '送っています…'; }
 function render(html, where = '#main') { if (where === '#main') render.cur = render.keepTop ? 'home' : 'other'; if (where === '#main' && !render.keepTop) $('#top').innerHTML = ''; $(where).innerHTML = html; window.scrollTo(0, 0); }
 function jpDate(iso) { const d = new Date(iso + 'T00:00:00'); return (d.getMonth() + 1) + '/' + d.getDate() + '（' + '日月火水木金土'[d.getDay()] + '）'; }
-function chips(name, list, opts = {}) { // opts: {multi, sub, value}
-  const sel = new Set([].concat(opts.value || []));
+// 手で書いた物は、その現場の候補として携帯に覚えておく（次からは押すだけ）
+function memGet(k) { try { return JSON.parse(LS.get('free.' + S.siteId + '.' + k) || '[]'); } catch (e) { return []; } }
+function memAdd(k, v) { if (!k || !v) return; LS.set('free.' + S.siteId + '.' + k, JSON.stringify([v].concat(memGet(k).filter(x => x !== v)).slice(0, 10))); }
+function chips(name, list, opts = {}) { // opts: {multi, sub, value, opt, free, mem}
+  const sel = new Set([].concat(opts.value || []).filter(Boolean));
+  if (opts.mem) list = list.concat([].concat(...[].concat(opts.mem).map(memGet)).filter((v, i, a) => list.indexOf(v) < 0 && a.indexOf(v) === i));
   const extra = [...sel].filter(v => v && list.indexOf(v) < 0);   // 前に手で書いた物も出す
-  return '<div class="chips" data-chips="' + esc(name) + '" data-multi="' + (opts.multi ? 1 : 0) + '" data-opt="' + (opts.opt ? 1 : 0) + '" data-max="' + (opts.max || 0) + '">' + list.concat(extra).map(v => '<div class="chip' + (opts.sub ? ' sub' : '') + (sel.has(v) ? ' on' : '') + '" data-v="' + esc(v) + '">' + esc(v) + '</div>').join('') + (opts.free ? '<div class="chip sub free" data-v="__free__">＋書く</div>' : '') + '</div>';
+  return '<div class="chips" data-chips="' + esc(name) + '" data-multi="' + (opts.multi ? 1 : 0) + '" data-opt="' + (opts.opt ? 1 : 0) + '" data-max="' + (opts.max || 0) + '" data-mem="' + esc([].concat(opts.mem || [])[0] || '') + '">' + list.concat(extra).map(v => '<div class="chip' + (opts.sub ? ' sub' : '') + (sel.has(v) ? ' on' : '') + '" data-v="' + esc(v) + '">' + esc(v) + '</div>').join('') + (opts.free ? '<div class="chip sub free" data-v="__free__">＋書く</div>' : '') + '</div>';
 }
 function chipVal(name) { const box = $('[data-chips="' + name + '"]'); if (!box) return []; return $$('[data-chips="' + name + '"] .chip.on').map(c => c.dataset.v); }
 document.addEventListener('click', e => {
@@ -212,8 +239,10 @@ document.addEventListener('click', e => {
   const box = c.parentElement, multi = box.dataset.multi === '1', max = +box.dataset.max;
   if (c.dataset.v === '__free__') {   // 選ぶ物に無い時は手で書く
     const s = prompt('書いてください'); if (!s || !s.trim()) return;
+    const old = $$('[data-chips="' + box.dataset.chips + '"] .chip').find(x => x.dataset.v === s.trim());
+    if (old) { if (!old.classList.contains('on')) old.click(); return; }   // 同じ物がもうある時はそれを選ぶ
     const n = document.createElement('div'); n.className = 'chip' + (c.classList.contains('sub') ? ' sub' : ''); n.dataset.v = s.trim(); n.textContent = s.trim();
-    box.insertBefore(n, c); n.click(); return;
+    box.insertBefore(n, c); memAdd(box.dataset.mem, s.trim()); n.click(); return;
   }
   if (!multi) { const off = box.dataset.opt === '1' && c.classList.contains('on'); box.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c && !off)); }
   else { if (!c.classList.contains('on') && max && box.querySelectorAll('.chip.on').length >= max) { toast(max + 'つまでです'); return; } c.classList.toggle('on'); }
@@ -413,7 +442,7 @@ function viewHome() {
   if ($('#kyWarn')) $('#kyWarn').onclick = viewKY;
   if ($('#bKk')) $('#bKk').onclick = viewKakunin;
   $('#bCh').onclick = viewChushi;
-  if ($('#bOut')) $('#bOut').onclick = () => { if (f.KY && !r['作業内容']) return kyFirst(); if (confirm('まだ「入りました」を押していません。退場だけ記録しますか')) viewTaijo(); };
+  if ($('#bOut')) $('#bOut').onclick = () => { if (f.KY && !r['作業内容']) return kyFirst(); viewTaijo(true); };
   if ($('#bTn')) $('#bTn').onclick = () => viewRenraku('頼み事');
   if ($('#bHy')) $('#bHy').onclick = () => viewRenraku('ヒヤリハット');
 }
@@ -480,47 +509,51 @@ function places(ch) {
   if (!ch['部位'] && bui.indexOf('外壁') < 0) bui = ['外壁'].concat(bui);
   return { men, bui };
 }
-function viewKY(afterIn) {
-  viewKY.t0 = Date.now(); $('#tabbar').style.display = 'none';
+function viewKY(afterIn, back) {   // back＝②から戻った時の①の選択（選び直さなくてよいように）
+  if (!back) viewKY.t0 = Date.now(); $('#tabbar').style.display = 'none';
   const ch = S.site.choices || {}, kouteiMap = ch['工程'] || {}, kinds = Object.keys(kouteiMap);
-  const r = S.rec || {};
-  let h = (afterIn === true ? '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">✓ 入場しました</b>続けて、作業の前にKYを入れてください</div>' : '') + '<h2>① 今日の作業内容</h2><div class="small">方角 → 部位 → 工程 の順に選んでください（無い時は「＋書く」）</div><div class="card"><h3>方角</h3>' + chips('basho', places(ch).men, { multi: true, free: true }) + '</div><div class="card"><h3>部位</h3>' + chips('bui', places(ch).bui, { multi: true, free: true }) + '</div>';
-  kinds.forEach(k => h += '<div class="card"><h3>工程（' + esc(k) + '）</h3>' + chips('kt_' + k, kouteiMap[k], { multi: true, free: true }) + '</div>');
+  const sv = back || {};
+  let h = (afterIn === true ? '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">✓ 入場しました</b>続けて、作業の前にKYを入れてください</div>' : '') + '<h2>① 今日の作業内容</h2><div class="small">方角 → 部位 → 工程 の順に選んでください（無い時は「＋書く」）</div><div class="card"><h3>方角</h3>' + chips('basho', places(ch).men, { multi: true, free: true, mem: 'men', value: sv.basho }) + '</div><div class="card"><h3>部位</h3>' + chips('bui', places(ch).bui, { multi: true, free: true, mem: 'bui', value: sv.bui }) + '</div>';
+  kinds.forEach(k => h += '<div class="card"><h3>工程（' + esc(k) + '）</h3>' + chips('kt_' + k, kouteiMap[k], { multi: true, free: true, mem: 'kt_' + k, value: (sv.kt || {})[k] }) + '</div>');
   h += '<button class="btn" id="next1">次へ（危険のポイント）</button><button class="btn gray" id="bBack">戻る</button>';
   render(h); $('#bBack').onclick = viewHome;
   $('#next1').onclick = () => {
-    const basho = chipVal('basho'), bui = chipVal('bui'), koutei = [], keys = [];
-    kinds.forEach(k => chipVal('kt_' + k).forEach(v => { koutei.push(v); keys.push(k + '/' + v); }));
+    const basho = chipVal('basho'), bui = chipVal('bui'), koutei = [], keys = [], kt = {};
+    kinds.forEach(k => { kt[k] = chipVal('kt_' + k); kt[k].forEach(v => { koutei.push(v); keys.push(k + '/' + v); }); });
     if (kinds.length && !koutei.length) { $$('[data-chips^="kt_"]').forEach(c => c.classList.add('miss')); const k0 = $('[data-chips^="kt_"]'); if (k0) k0.scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('工程を1つは選んでください', 0); return; }
     const items = []; const seen = new Set();
     keys.forEach(k => (S.boot.ky[k] || []).forEach(x => { if (!seen.has(x.kiken)) { seen.add(x.kiken); items.push(x); } }));
     (S.boot.ky['共通'] || []).forEach(x => { if (!seen.has(x.kiken)) { seen.add(x.kiken); items.push(x); } });
     let h2 = '<h2>② 危険のポイント（3つまで）</h2><div class="small">押すと「私達はこうします」が決まります</div><div class="chips" data-chips="kk" data-multi="1" data-max="3">' + items.map((x, i) => '<div class="chip sub" data-v="' + i + '">' + esc(x.kiken) + '<br><span style="font-size:14px;color:#2a9d8f">→ ' + esc(x.kou) + '</span></div>').join('') + '</div>';
     h2 += '<h2>③ 本日の安全目標（1つ）</h2>' + chips('mk', S.boot.goals) + '<button class="btn ok big" id="send">KYを送る</button><button class="btn gray" id="bBack2">戻る</button>';
-    render(h2); $('#bBack2').onclick = viewKY;
+    render(h2); $('#bBack2').onclick = () => viewKY(false, { basho, bui, kt });
     $('#send').onclick = async () => {
       const kk = chipVal('kk').map(i => items[+i]), mk = chipVal('mk')[0] || '';
       if (!kk.length) { $('[data-chips="kk"]').classList.add('miss'); $('[data-chips="kk"]').scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('危険のポイントを1つは選んでください', 0); return; }
       if (!mk) { $('[data-chips="mk"]').classList.add('miss'); $('[data-chips="mk"]').scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('本日の安全目標を1つ選んでください', 0); return; }
+      LS.set('kysel', JSON.stringify({ key: recKey(), basho, bui, koutei }));   // 「出ました」の進み1に入れる（手で書いた物も）
       sendQ('ky', Object.assign(P(), { basho, bui, koutei, kiken: kk, mokuhyou: mk, secs: Math.round((Date.now() - (viewKY.t0 || Date.now())) / 1000) }), { '作業内容': [basho.join('・'), bui.join('・'), koutei.join('・')].filter(Boolean).join(' ') });
       done('KYを記録しました', localTime(), '<div class="card"><b>作業内容</b><br>' + esc(S.rec['作業内容']) + '<br><b>安全目標</b><br>' + esc(mk) + '</div>');
     };
   };
 }
 // ---------- 退場 ----------
-function viewTaijo() {
+function viewTaijo(forgot) {   // forgot＝「入りました」を押し忘れた時（入った時刻と人数も聞く）
   const ch = S.site.choices || {}, kouteiMap = ch['工程'] || {}, kinds = Object.keys(kouteiMap), f = S.site.features;
   const allK = []; kinds.forEach(k => kouteiMap[k].forEach(v => allK.push(v)));
   const doko = ch['どこまで'] || ['完了', '半分くらい', '少し', '続き'];
   $('#tabbar').style.display = 'none';
   viewTaijo.ok = qrOK() || isNakai();
   const shu = (S.rec || {})['中止'] === '終日';   // 終日中止の日は進みは要らない
-  // 朝のKYで選んだ場所・工程を、進み1に最初から入れておく（「妻壁・矢切・モール」のように・が入った名前も拾う）
+  // 朝のKYで選んだ方角・部位・工程を、進み1に最初から入れておく（手で書いた物も。前の版のKYは作業内容の文から拾う）
   const sg = String((S.rec || {})['作業内容'] || '');
   const PL = places(ch);
-  const pb = PL.men.filter(x => sg.indexOf(x) >= 0)[0], pu = PL.bui.filter(x => sg.indexOf(x) >= 0)[0], pk = allK.filter(x => sg.indexOf(x) >= 0)[0];
-  const block = (i, b0, k0, u0) => '<div class="card"' + (i === 2 ? ' id="s2box" style="display:none"' : '') + '><h3>進み ' + i + (i === 2 ? '（あれば）' : '') + '</h3>方角' + chips('s' + i + 'b', PL.men, { sub: true, value: b0, opt: i === 2 || shu, free: true }) + '部位' + chips('s' + i + 'u', PL.bui, { sub: true, value: u0, opt: true, free: true }) + '工程' + chips('s' + i + 'k', allK, { sub: true, value: k0, opt: i === 2 || shu, free: true }) + 'どこまで' + chips('s' + i + 'd', doko, { sub: true, opt: i === 2 || shu }) + '</div>';
-  let h = (shu ? '<div class="card note"><b>今日は終日中止です</b>進みは入れなくて大丈夫です</div>' : '') + '<h2>本日の進み</h2><div class="small">一番時間をかけた仕事。朝のKYの内容を入れてあります</div>' + block(1, pb, pk, pu) + '<button class="btn gray" id="more2">＋ もう1つある（進み2）</button>' + block(2);
+  let ks = null; try { ks = JSON.parse(LS.get('kysel') || 'null'); } catch (e) {}
+  if (!ks || ks.key !== recKey()) ks = null;
+  const pb = ks ? ks.basho[0] : PL.men.filter(x => sg.indexOf(x) >= 0)[0], pu = ks ? ks.bui[0] : PL.bui.filter(x => sg.indexOf(x) >= 0)[0], pk = ks ? ks.koutei[0] : allK.filter(x => sg.indexOf(x) >= 0)[0];
+  const ktMem = kinds.map(k => 'kt_' + k).concat(['koutei']);
+  const block = (i, b0, k0, u0) => '<div class="card"' + (i === 2 ? ' id="s2box" style="display:none"' : '') + '><h3>進み ' + i + (i === 2 ? '（あれば）' : '') + '</h3>方角<span class="small">（外壁の時）</span>' + chips('s' + i + 'b', PL.men, { sub: true, value: b0, opt: true, free: true, mem: 'men' }) + '部位' + chips('s' + i + 'u', PL.bui, { sub: true, value: u0, opt: i === 2 || shu, free: true, mem: 'bui' }) + '工程' + chips('s' + i + 'k', allK, { sub: true, value: k0, opt: i === 2 || shu, free: true, mem: ['koutei'].concat(ktMem) }) + 'どこまで' + chips('s' + i + 'd', doko, { sub: true, opt: i === 2 || shu }) + '</div>';
+  let h = (forgot ? '<div class="card note"><b>「入りました」が押されていません</b>入った時刻と人数も入れてください<div class="row" style="align-items:center"><div style="flex:1">入った時刻<input type="time" id="tIn" value="08:00"></div></div>人数' + stepper('tn', S.ninzu || 1) + '</div>' : '') + (shu ? '<div class="card note"><b>今日は終日中止です</b>進みは入れなくて大丈夫です</div>' : '') + '<h2>本日の進み</h2><div class="small">一番時間をかけた仕事。朝のKYの内容を入れてあります</div>' + block(1, pb, pk, pu) + '<button class="btn gray" id="more2">＋ もう1つある（進み2）</button>' + block(2);
   if (f['明日']) h += '<div class="card"><h3>明日は</h3>' + chips('as', ['来る', '来ない']) + '<div id="anw">人数' + stepper('an', S.ninzu || 1) + '</div></div>';
   if (f['片付け']) h += '<div class="card"><h3>帰る前に</h3>' + chips('kz', ['全部よし（片付け・戸締り・火の元）']) + '</div>';
   h += '<button class="btn big ok" id="go">出ました（記録して送る）</button><div class="small center">進み1・明日・帰る前の確認を入れると送れます</div><button class="btn gray" id="bBack">戻る</button>';
@@ -530,8 +563,14 @@ function viewTaijo() {
   $('#go').onclick = async () => {
     if (!viewTaijo.ok) { viewHome(); toast('QRを読んでから10分たちました。もう一度、現場のQRをカメラで読んでください', 0); return; }
     // 入れていない所があれば、そこへ動かして赤く光らせる
-    const need = shu ? [] : [['s1b', '進み1の方角'], ['s1k', '進み1の工程'], ['s1d', '進み1のどこまで']].filter(x => $('[data-chips="' + x[0] + '"] .chip'));   // 選択肢の無い欄は要らない
+    // 必ず要るのは部位・工程・どこまで。方角は部位が外壁の時だけ（屋根・ベランダに方角は無い）
+    const need = shu ? [] : [['s1u', '進み1の部位'], ['s1k', '進み1の工程'], ['s1d', '進み1のどこまで']].concat(/外壁/.test(chipVal('s1u')[0] || '') ? [['s1b', '進み1の方角']] : []).filter(x => $('[data-chips="' + x[0] + '"] .chip:not(.free)'));   // 選択肢の無い欄は要らない
     if (f['明日']) need.push(['as', '明日は来るか']);
+    if (forgot) {
+      const ti = $('#tIn').value;
+      if (!/^\d\d:\d\d$/.test(ti) || ti >= localTime()) { toast('入った時刻は、今より前の時刻にしてください', 0); $('#tIn').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+      if (stepVal('tn') < 1) { toast('人数を1名以上にしてください', 0); return; }
+    }
     const miss = need.filter(x => !chipVal(x[0]).length);
     const kzMiss = f['片付け'] && !chipVal('kz').length;
     $$('.chips.miss').forEach(c => c.classList.remove('miss'));
@@ -545,7 +584,9 @@ function viewTaijo() {
     const susumi = [1, 2].map(i => ({ basho: chipVal('s' + i + 'b')[0] || '', bui: chipVal('s' + i + 'u')[0] || '', koutei: chipVal('s' + i + 'k')[0] || '', dokomade: chipVal('s' + i + 'd')[0] || '' })).filter(s => s.koutei || s.basho || s.bui);
     const asV = f['明日'] ? (chipVal('as')[0] || '') : '';
     const p = Object.assign(P(), { susumi, ashita: asV, ashitaNinzu: asV === '来る' && $('#an') ? stepVal('an') : '', katazuke: f['片付け'] ? '全部よし' : '', qrNone: !qrOK() });
-    sendQ('taijo', p, { '退場': localTime() });
+    const patch = { '退場': localTime() };
+    if (forgot) { p.inTime = $('#tIn').value; p.ninzu = stepVal('tn'); patch['入場'] = p.inTime; patch['人数'] = String(p.ninzu); S.ninzu = p.ninzu; LS.set('ninzu', p.ninzu); }
+    sendQ('taijo', p, patch);
     LS.set('last', JSON.stringify({ what: '退場', ts: Date.now() })); done('出ました お疲れ様でした', S.rec['退場']);
   };
 }
@@ -569,24 +610,26 @@ async function loadMyHist(only) {
   $$('#hist [data-mp]').forEach(b => b.onclick = async () => { busy(true, '写真を読んでいます…'); try { showPhoto(await call('kakuninPhoto', S.siteId, S.foreman, b.dataset.mp, S.company)); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
 }
 function viewKakunin() {
-  const ch = S.site.choices || {};
-  render('<h2>📷 ここどうしますか</h2><h3>場所</h3>' + chips('bs', (ch['場所'] || []).concat(['外壁']), { sub: true, opt: true, free: true }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><button class="btn gray" id="bBack">戻る</button><h2 style="margin-top:22px">これまでのやりとり</h2><div id="hist"><div class="small">読み込み中…</div></div>');
+  const ch = S.site.choices || {}, PL = places(ch);
+  const qid = 'k' + Date.now() + Math.random().toString(36).slice(2, 5);   // 画面を開いた時に1回だけ作る（送り直しても2件にならない）
+  render('<h2>📷 ここどうしますか</h2><h3>場所（方角）</h3>' + chips('bs', PL.men, { sub: true, opt: true, free: true, mem: 'men' }) + '<h3>場所（部位）</h3>' + chips('bu', PL.bui, { sub: true, opt: true, free: true, mem: 'bui' }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><button class="btn gray" id="bBack">戻る</button><h2 style="margin-top:22px">これまでのやりとり</h2><div id="hist"><div class="small">読み込み中…</div></div>');
   $('#bBack').onclick = viewHome;
   loadMyHist();
   $('#go').onclick = async () => {
     if (!PHOTOS.length && !$('#tx').value.trim()) { toast('写真か文を入れてください'); return; }
-    busy(true, '写真を送っています…'); try { await call('kakunin', Object.assign(P(), { qid: 'k' + Date.now() + Math.random().toString(36).slice(2, 5), basho: chipVal('bs')[0] || '', text: $('#tx').value.trim(), photos: PHOTOS })); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
+    busy(true, '写真を送っています…'); try { await call('kakunin', Object.assign(P(), { qid, basho: [chipVal('bs')[0], chipVal('bu')[0]].filter(Boolean).join(' '), text: $('#tx').value.trim(), photos: PHOTOS })); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
     busy(false); done('中井に送りました', '返事はこの画面の上に出ます', '');
   };
 }
 // ---------- 頼み事・ヒヤリハット ----------
 function viewRenraku(shurui) {
   const hy = shurui === 'ヒヤリハット';
+  const qid = 'r' + Date.now() + Math.random().toString(36).slice(2, 5);
   render('<h2>' + (hy ? '⚡ ヒヤリハット' : '📝 中井に頼み事') + '</h2>' + (hy ? '<div class="card note"><b>ケガをした時は、まず電話</b><a class="btn red" style="text-decoration:none" href="tel:' + esc(S.boot.phone) + '">📞 中井に電話 ' + esc(S.boot.phone) + '</a>' + chips('kg', ['ケガあり', 'ケガなし']) + '</div>' : '') + '<textarea id="tx" placeholder="' + (hy ? '何があったか（声でも）' : '明日○○を持ってきて、など（声でも）') + '"></textarea>' + photoBox(1) + '<button class="btn big ok" id="go">送る</button><button class="btn gray" id="bBack">戻る</button>');
   $('#bBack').onclick = viewHome;
   $('#go').onclick = async () => {
     const tx = $('#tx').value.trim(); if (!tx && !PHOTOS.length) { toast('文か写真を入れてください'); return; }
-    busy(true); try { await call('renraku', Object.assign(P(), { qid: 'r' + Date.now() + Math.random().toString(36).slice(2, 5), shurui, text: tx, photos: PHOTOS, kega: hy && chipVal('kg')[0] === 'ケガあり' })); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
+    busy(true); try { await call('renraku', Object.assign(P(), { qid, shurui, text: tx, photos: PHOTOS, kega: hy && chipVal('kg')[0] === 'ケガあり' })); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
     busy(false); done('送りました', hy ? 'ヒヤリハット' : '頼み事');
   };
 }
@@ -643,44 +686,104 @@ function shinkiForm(old) {
   $('#send').onclick = () => send(false);
 }
 // ---------- 中井の画面 ----------
-let A = { pin: LS.get('pin') || '', data: null, tab: '今日', date: '' };
-async function adminStart() {
+let A = { pin: /^tk_/.test(LS.get('pin') || '') ? LS.get('pin') : '', data: null, tab: '今日', date: '', unlocked: false };
+// Face ID（携帯の顔認証）で開く。暗証番号を一度入れた携帯だけ。顔の情報は携帯の外に出ない
+const b64u = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const ub64 = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+async function fidCan() { try { return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { return false; } }
+async function fidMake() {
+  const c = await navigator.credentials.create({ publicKey: { rp: { name: 'ツジモト管理' }, user: { id: rnd(16), name: 'nakai', displayName: '中井' }, challenge: rnd(32), pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }], authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' }, timeout: 60000 } });
+  LS.set('fid', b64u(c.rawId));
+}
+async function fidCheck() { await navigator.credentials.get({ publicKey: { challenge: rnd(32), allowCredentials: [{ type: 'public-key', id: ub64(LS.get('fid')) }], userVerification: 'required', timeout: 60000 } }); }
+function pinScreen() {
+  render('<h2>中井の画面</h2><input type="tel" inputmode="numeric" autocomplete="off" id="pin" placeholder="暗証番号"><button class="btn" id="go">開く</button>' + (INIT.admin ? '' : '<button class="btn gray" id="bBack">戻る</button>'), '#main'); $('#top').innerHTML = '';
+  if ($('#bBack')) $('#bBack').onclick = () => reboot(true);
+  $('#go').onclick = async () => {
+    const pin = $('#pin').value.trim(); if (!pin) return;
+    busy(true, '確かめています…');
+    try { A.pin = await call('adminLogin', pin); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
+    busy(false); LS.set('pin', A.pin); A.unlocked = true; adminStart();
+  };
+}
+async function adminStart(keep) {   // keep＝保存の後など、見ていた場所（スクロール）をそのままにする
   $('#tabbar').style.display = 'none';
-  if (!A.pin) { render('<h2>中井の画面</h2><input type="tel" id="pin" placeholder="暗証番号"><button class="btn" id="go">開く</button>' + (INIT.admin ? '' : '<button class="btn gray" id="bBack">戻る</button>'), '#main'); $('#top').innerHTML = ''; if ($('#bBack')) $('#bBack').onclick = () => reboot(true); $('#go').onclick = () => { A.pin = $('#pin').value.trim(); adminStart(); }; return; }
+  if (!A.pin) return pinScreen();
+  if (!A.unlocked && LS.get('fid')) {   // Face ID を使う携帯：開いた時に1回だけ顔で確かめる
+    render('<div class="card center" style="padding:28px 16px"><h2>中井の画面</h2><button class="btn big" id="fidGo">Face ID で開く</button><span class="link" id="fidPin">暗証番号で開く</span></div>'); $('#top').innerHTML = '';
+    $('#fidGo').onclick = async () => { try { await fidCheck(); A.unlocked = true; adminStart(); } catch (e) { toast('Face ID で開けませんでした。もう一度押すか、暗証番号で開いてください', 0); } };
+    $('#fidPin').onclick = () => { A.pin = ''; LS.set('pin', null); pinScreen(); };
+    return;
+  }
+  A.unlocked = true;
+  const y = keep ? window.scrollY : 0;
   busy(true, '読み込み中…');
-  try { A.data = await call('adminToday', A.pin, A.date); } catch (e) { busy(false); if (/暗証番号/.test(String(e.message))) { A.pin = ''; LS.set('pin', null); toast(e.message, 0); return adminStart(); } toast(jpErr(e), 0); render('<button class="btn" onclick="adminStart()">もう一度読み込む</button>'); return; }
-  busy(false); LS.set('pin', A.pin);
+  try { A.data = await call('adminToday', A.pin, A.date); } catch (e) { busy(false); if (/暗証番号が違|合鍵が古く/.test(String(e.message))) { A.pin = ''; LS.set('pin', null); toast(e.message, 0); return pinScreen(); } toast(jpErr(e), 0); render('<button class="btn" onclick="adminStart()">もう一度読み込む</button>'); return; }
+  busy(false);
   $('#hdr .site').textContent = '中井の画面'; $('#hdr .who').innerHTML = jpDate(A.data.real || A.data.today) + '　' + esc(A.data.now) + (INIT.admin ? '' : '　<span id="toHome">職長の画面へ</span>');
   if ($('#toHome')) $('#toHome').onclick = () => reboot(true);
   $('#top').innerHTML = '';
   adminTab(A.tab);
+  if (y) window.scrollTo(0, y);
+  if (!LS.get('fid') && !LS.get('fidNo') && await fidCan()) {   // 一度だけ聞く
+    render('<div class="card note"><b>次から Face ID で開けるようにしますか</b>暗証番号を入れなくても、顔で開けます<div class="row"><button class="btn" id="fidYes">使う</button><button class="btn gray" id="fidNo">使わない</button></div></div>', '#top');
+    $('#fidYes').onclick = async () => { try { await fidMake(); $('#top').innerHTML = ''; toast('次から Face ID で開きます'); } catch (e) { toast('Face ID を設定できませんでした（携帯の設定で Face ID が使えるか見てください）', 0); } };
+    $('#fidNo').onclick = () => { LS.set('fidNo', '1'); $('#top').innerHTML = ''; };
+  }
 }
-// 記録を直す窓（中井様だけ）
+// 記録を直す窓（中井様だけ）。変えた欄だけ送る
 function editRec(r, isNew) {
   const m = document.createElement('div'); m.id = 'sheet';
-  m.innerHTML = '<div class="sh" style="max-height:88vh;overflow:auto"><div class="grab"></div><h2 class="center" style="margin:4px 0">' + (isNew ? '押し忘れの記録を足す' : '記録を直す') + '</h2><div class="small center">' + jpDate(r.date) + '</div>'
-    + (isNew ? '会社<input type="text" id="eCo" placeholder="例：太陽装建">職長<input type="text" id="eFm" placeholder="例：大畑">' : '<div class="card"><b>' + esc(r.company) + '　' + esc(r.foreman) + '</b></div>')
-    + '入場<input type="time" id="eIn" value="' + esc(r.in) + '">退場<input type="time" id="eOut" value="' + esc(r.out) + '">人数<input type="number" id="eN" value="' + esc(r.ninzu) + '">中止' + chips('eCh', ['なし', '終日', '半日'], { value: r.chushi || 'なし' }) + '<div id="eRyw"' + (r.chushi ? '' : ' style="display:none"') + '>理由' + chips('eRy', ['雨', '風', 'その他'], { value: r.riyuu }) + '</div>'
-    + '<button class="btn big" id="eOk">保存する</button><button class="btn gray" id="eNo">やめる</button></div>';
+  const cos = A.data.companies || [];
+  m.innerHTML = '<div class="sh esh"><div class="esc"><div class="grab"></div><h2 class="center" style="margin:4px 0">' + (isNew ? '押し忘れの記録を足す' : '記録を直す') + '</h2><div class="small center">' + jpDate(r.date) + '</div>'
+    + (isNew ? '<h3>会社</h3>' + chips('eCo', cos.map(c => c.name), { free: true, sub: true }) + '<div id="eFmw"></div>' : '<div class="card"><b>' + esc(r.company) + '　' + esc(r.foreman) + '</b></div>')
+    + '入場<input type="time" id="eIn" value="' + esc(r.in) + '">退場<input type="time" id="eOut" value="' + esc(r.out) + '">' + (r.out ? '<span class="mini" id="eOutX">退場を消す</span>' : '') + '<br>人数<input type="number" inputmode="numeric" min="1" id="eN" value="' + esc(r.ninzu) + '">中止' + chips('eCh', ['なし', '終日', '半日'], { value: r.chushi || 'なし' }) + '<div id="eRyw"' + (r.chushi ? '' : ' style="display:none"') + '>理由' + chips('eRy', ['雨', '風', 'その他'], { value: r.riyuu, opt: true }) + '</div></div>'
+    + '<div class="efoot"><button class="btn gray" id="eNo">やめる</button><button class="btn" id="eOk">保存する</button></div></div>';
   document.body.appendChild(m);
+  m.onclick = e => { if (e.target === m) m.remove(); };   // 外を押すと閉じる
   $('#eNo').onclick = () => m.remove();
-  $('[data-chips="eCh"]').addEventListener('chipchange', () => { $('#eRyw').style.display = (chipVal('eCh')[0] || 'なし') === 'なし' ? 'none' : 'block'; });   // 中止なしの時は理由を出さない（11/1 中井様）
+  if ($('#eOutX')) $('#eOutX').onclick = () => { $('#eOut').value = ''; };
+  const fmBox = () => { const c = cos.find(x => x.name === chipVal('eCo')[0]); $('#eFmw').innerHTML = chipVal('eCo')[0] ? '<h3>職長</h3>' + chips('eFm', c ? c.foremen : [], { free: true, sub: true }) : ''; };
+  if (isNew) $('[data-chips="eCo"]').addEventListener('chipchange', fmBox);
+  $('[data-chips="eCh"]').addEventListener('chipchange', () => { const nashi = (chipVal('eCh')[0] || 'なし') === 'なし'; $('#eRyw').style.display = nashi ? 'none' : 'block'; if (nashi) $$('[data-chips="eRy"] .chip').forEach(c => c.classList.remove('on')); });   // 中止なしの時は理由を出さず、選んでいた理由も外す（11/1 中井様）
   $('#eOk').onclick = async () => {
     const ch = chipVal('eCh')[0] || 'なし';
-    const x = { siteId: r.siteId, date: r.date, company: isNew ? $('#eCo').value.trim() : r.company, foreman: isNew ? $('#eFm').value.trim() : r.foreman, in: $('#eIn').value, out: $('#eOut').value, ninzu: $('#eN').value, chushi: ch === 'なし' ? '' : ch, riyuu: ch === 'なし' ? '' : (chipVal('eRy')[0] || '') };
-    if (!x.company || !x.foreman) { toast('会社と職長を入れてください', 0); return; }
-    if (x.chushi && !x.riyuu) { toast('中止の理由を選んでください', 0); return; }
-    busy(true, '保存しています…'); try { await call('adminEdit', A.pin, x); m.remove(); toast('直しました'); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); }
+    const now = { in: $('#eIn').value, out: $('#eOut').value, ninzu: $('#eN').value.trim(), chushi: ch === 'なし' ? '' : ch, riyuu: ch === 'なし' ? '' : (chipVal('eRy')[0] || '') };
+    const x = { siteId: r.siteId, date: r.date, company: isNew ? (chipVal('eCo')[0] || '') : r.company, foreman: isNew ? (chipVal('eFm')[0] || '') : r.foreman };
+    if (!x.company || !x.foreman) { toast('会社と職長を選んでください', 0); return; }
+    if (now.chushi && !now.riyuu) { toast('中止の理由を選んでください', 0); return; }
+    if (now.in && now.out && now.out <= now.in) { toast('退場が入場より前になっています', 0); return; }
+    if (now.in && !(+now.ninzu >= 1)) { toast('人数を1名以上にしてください', 0); return; }
+    if (isNew) { if (!now.in && !now.out && !now.chushi) { toast('入場・退場・中止のどれかを入れてください', 0); return; } x.isNew = true; Object.keys(now).forEach(k => { if (now[k]) x[k] = now[k]; }); }
+    else { Object.keys(now).forEach(k => { if (String(now[k]) !== String(r[k] || '')) x[k] = now[k]; }); if (Object.keys(x).length === 4) { m.remove(); toast('変わっていません'); return; } }
+    busy(true, '保存しています…'); try { await call('adminEdit', A.pin, x); m.remove(); toast(isNew ? '足しました' : '直しました'); adminStart(true); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); }
   };
+}
+// 1人ずつのカード（入退場・KY・進み・明日）。行を押すと直す窓
+function recCard(r, i) {
+  const pill = r.chushi ? '<span class="pill stop">' + esc(r.chushi) + '中止（' + esc(r.riyuu) + '）</span>' : r.out ? '<span class="pill out">退場済</span>' : r.in ? '<span class="pill in">作業中</span>' : '<span class="pill">まだ</span>';
+  let h = '<div class="rc rec-edit" data-edit="' + i + '"><div class="rc-h"><b>' + esc(r.company) + '　' + esc(r.foreman) + '</b>' + pill + '</div>';
+  h += '<div class="rc-t"><span><i>入</i>' + esc(r.in || '—') + (r.qrIn ? '<i>QRなし</i>' : '') + '</span><span><i>出</i>' + esc(r.out || '—') + (r.qrOut ? '<i>QRなし</i>' : '') + '</span>' + (r.ninzu ? '<span>' + esc(r.ninzu) + '名</span>' : '') + '</div>';
+  if (r.sagyou) {
+    const kk = String(r.kiken || '').split('／').filter(Boolean), ko = String(r.kou || '').split('／');
+    h += '<div class="rc-sec"><div class="rc-lb">KY' + (r.kysec ? '（' + esc(r.kysec) + '秒で入力）' : '') + '</div><div class="rc-w">' + String(r.sagyou).split(' ').filter(Boolean).map(w => '<span>' + esc(w) + '</span>').join('') + '</div>'
+      + (kk.length ? '<ol class="rc-kk">' + kk.map((k, j) => '<li><b>⚠ ' + esc(k) + '</b><span>→ ' + esc(ko[j] || '') + '</span></li>').join('') + '</ol>' : '')
+      + (r.mokuhyou ? '<div class="rc-mk">🎯 ' + esc(r.mokuhyou) + '</div>' : '') + '</div>';
+  } else if (r.in && r.chushi !== '終日') h += '<div class="rc-sec rc-ng">⚠ KYまだ</div>';
+  if ((r.susumi || []).length) h += '<div class="rc-sec"><div class="rc-lb">今日の進み</div>' + r.susumi.map(s => '<div class="rc-w">' + [s.basho, s.bui, s.koutei].filter(Boolean).map(w => '<span>' + esc(w) + '</span>').join('') + (s.dokomade ? '<span class="k">' + esc(s.dokomade) + '</span>' : '') + '</div>').join('<div style="height:5px"></div>') + '</div>';
+  if (r.ashita) h += '<div class="rc-sec"><span class="rc-lb">明日</span>　<b>' + esc(r.ashita) + '</b>' + (r.ashita === '来る' && r.ashitaN ? '　' + esc(r.ashitaN) + '名' : '') + (r.katazuke ? '　<span class="small">片付け：' + esc(r.katazuke) + '</span>' : '') + '</div>';
+  h += (r.warn || []).map(x => '<div class="rc-warn">⚠ ' + esc(x) + '</div>').join('');
+  return h + '<span class="rc-ed">✎ 直す</span></div>';
 }
 function adminTab(tab) {
   A.tab = tab; const d = A.data;
   let h = '<div class="tabs">' + ['今日', '返事', '切替', '自分'].map(t => '<div data-t="' + t + '" class="' + (t === tab ? 'on' : '') + '">' + t + (t === '返事' && (d.pending.length + d.renraku.length) ? '（' + (d.pending.length + d.renraku.length) + '）' : '') + '</div>').join('') + '</div>';
   if (tab === '今日') {
     // 過去の日へすぐ飛べるように：日付を選ぶ欄＋よく使う日のボタン（11/1 中井様「前の日をずっと押すのは操作性が悪い」）
-    h += '<div class="card"><h3>見る日</h3><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><div class="qr-chips">' + [['今日', 0], ['昨日', -1], ['おととい', -2], ['1週間前', -7], ['1か月前', -30]].map(x => '<span data-jump="' + x[1] + '">' + x[0] + '</span>').join('') + '</div><div class="row"><button class="btn gray" id="dPrev">◀ 前の日</button><button class="btn gray" id="dNext"' + (d.today >= d.real ? ' disabled' : '') + '>次の日 ▶</button></div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2><div class="small">行を押すと、時刻・人数・中止を直せます</div>';
+    h += '<div class="card"><h3>見る日</h3><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><div class="qr-chips">' + [['今日', 0], ['昨日', -1], ['おととい', -2], ['1週間前', -7], ['1か月前', -30]].map(x => '<span data-jump="' + x[1] + '">' + x[0] + '</span>').join('') + '</div><div class="row"><button class="btn gray" id="dPrev">◀ 前の日</button><button class="btn gray" id="dNext"' + (d.today >= d.real ? ' disabled' : '') + '>次の日 ▶</button></div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2><div class="small">カードを押すと、時刻・人数・中止を直せます</div>';
     A.recs = [];
-    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => '<div class="line rec-edit" data-edit="' + (A.recs.push(r) - 1) + '">' + esc(r.company) + ' ' + esc(r.foreman) + '　' + esc(r.ninzu) + '名　' + esc(r.in || '—') + '〜' + esc(r.out || '') + (r.chushi ? '　<b style="color:var(--red)">' + esc(r.chushi) + '中止（' + esc(r.riyuu) + '）</b>' : '') + ((r.warn || []).map(x => '<br><span style="color:#c77700;font-size:14px;font-weight:600">⚠ ' + esc(x) + '</span>').join('')) + (r.sagyou ? '<br><span class="small">KY：' + esc(r.sagyou) + '</span>' : (r.in && !r.chushi ? '<br><b style="color:var(--red);font-size:14px">⚠ KYまだ</b>' : '')) + (r.ashita ? '<br><span class="small">明日：' + esc(r.ashita) + ' ' + esc(r.ashitaN) + '名</span>' : '') + '</div>').join('') : '<div class="small">まだ誰も押していません</div>') + '<span class="link" data-add="' + esc(s.id) + '">＋ 押し忘れの記録を足す</span></div>'; });
+    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => recCard(r, A.recs.push(r) - 1)).join('') : '<div class="small">まだ誰も押していません</div>') + '<div style="margin-top:12px"><span class="link" data-add="' + esc(s.id) + '">＋ 押し忘れの記録を足す</span></div></div>'; });
     h += '<button class="btn gray" id="reload">更新</button>';
   }
   if (tab === '返事') {
@@ -708,7 +811,7 @@ function adminTab(tab) {
   $$('[data-jump]').forEach(x => x.onclick = () => { const n = +x.dataset.jump; if (!n) { A.date = ''; return adminStart(); } const t0 = new Date(A.data.real + 'T00:00:00'); t0.setDate(t0.getDate() + n); A.date = t0.getFullYear() + '-' + String(t0.getMonth() + 1).padStart(2, '0') + '-' + String(t0.getDate()).padStart(2, '0'); adminStart(); });
   $$('[data-edit]').forEach(x => x.onclick = () => editRec(A.recs[+x.dataset.edit]));
   $$('[data-add]').forEach(x => x.onclick = () => editRec({ siteId: x.dataset.add, date: A.data.today, company: '', foreman: '', in: '', out: '', ninzu: '', chushi: '', riyuu: '' }, true));
-  $$('[data-qt]').forEach(x => x.onclick = () => { const ta = x.closest('.card').querySelector('textarea'); ta.value = (ta.value ? ta.value + ' ' : '') + x.dataset.qt; });
+  $$('[data-qt]').forEach(x => x.onclick = () => { const ta = x.closest('.card').querySelector('textarea'); if (ta.value.indexOf(x.dataset.qt) >= 0) return; ta.value =(ta.value ? ta.value + ' ' : '') + x.dataset.qt; });
   const loadAdminImgs = () => {
     $$('img[data-p]:not([src])').forEach(async im => { try { im.src = await call('adminPhoto', A.pin, im.dataset.p); im.onclick = () => showPhoto(im.src); } catch (e) { im.alt = '×'; } });
     $$('span[data-p]').forEach(b => b.onclick = async () => { busy(true, '写真を読んでいます…'); try { showPhoto(await call('adminPhoto', A.pin, b.dataset.p)); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
