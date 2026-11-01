@@ -265,12 +265,12 @@ function tabbar(on) {
 }
 function viewMenu() {
   $('#top').innerHTML = ''; tabbar('menu');
-  render('<h2>その他</h2><div class="menu"><button class="btn gray" id="mWho">👷 職長・会社を変える<small>今：' + esc(S.company) + '・' + esc(S.foreman) + 'さん</small></button><button class="btn gray" id="mSite">🏠 現場を変える<small>今：' + esc(S.site.name) + '</small></button><button class="btn gray" id="mAdmin">🔑 中井の画面</button></div>');
+  render('<h2>その他</h2><div class="menu"><button class="btn gray" id="mWho">👷 職長・会社を変える<small>今：' + esc(S.company) + '・' + esc(S.foreman) + 'さん</small></button><div class="card"><div class="small">今の現場</div><b>' + esc(S.site.name) + '</b><div class="small">別の現場はその現場のQRを読むと切り替わります</div></div><button class="btn gray" id="mAdmin">🔑 中井の画面</button></div>');
   $('#mWho').onclick = () => { $('#tabbar').style.display = 'none'; viewWho(); };
-  $('#mSite').onclick = () => { $('#tabbar').style.display = 'none'; viewSitePick(); };
   $('#mAdmin').onclick = () => { $('#tabbar').style.display = 'none'; adminStart(); };
 }
 function viewSitePick() {
+  if (!INIT.admin) { $('#tabbar').style.display = 'none'; render('<div class="card center" style="padding:30px 18px"><div class="qri" style="margin:0 auto 12px;width:64px;height:64px;border-radius:18px;background:#e5f0ff;color:var(--blue);display:flex;align-items:center;justify-content:center">' + ICON.cam + '</div><h2>現場のQRを読んでください</h2><div class="small">現場に貼ってある「入場・KYはここ！」のQRを、携帯のカメラで読むと開きます</div></div><p class="center"><span class="link" id="toAdm">中井の画面</span></p>'); $('#toAdm').onclick = adminStart; return; }
   render('<h2>どの現場ですか</h2><div class="small">現場のQRコードを読むと、この画面は出ません。</div>' + S.boot.sites.map(s => '<button class="btn gray" data-id="' + esc(s.id) + '">' + esc(s.name) + '</button>').join('') + (S.boot.sites.length ? '' : '<div class="card">使える現場がまだありません。中井に連絡してください。</div>'));
   $$('#main .btn').forEach(b => b.onclick = () => { S.siteId = b.dataset.id; S.qrNone = true; LS.set('site', S.siteId); reboot(); });
 }
