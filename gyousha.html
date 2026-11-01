@@ -979,7 +979,7 @@ function gTab(tab) {
   }
   if (tab === '会社') {
     h += '<div class="small">下の会社の職長さんは、現場のQRを読んで、ここで足した会社と名前を選びます</div>';
-    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2><h3>この画面に出る会社</h3><div class="rc-w">' + s.cos.map(c => '<span>' + esc(c) + '</span>').join('') + '</div><h3>下の会社・職長を足す</h3><input type="text" data-gco="' + esc(s.id) + '" placeholder="会社名（例：宮里塗装）"><input type="text" data-gfm="' + esc(s.id) + '" placeholder="職長の名前（2人以上は「、」で区切る）"><button class="btn" data-gadd="' + esc(s.id) + '">足す</button></div>'; });
+    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2><h3>この画面に出る会社</h3><div class="rc-w">' + s.cos.map(c => '<span>' + esc(c) + '</span>').join('') + '</div><h3>下の会社・職長を足す</h3><input type="text" data-gco="' + esc(s.id) + '" placeholder="会社名（例：○○塗装）"><input type="text" data-gfm="' + esc(s.id) + '" placeholder="職長の名前（例：山田）"><div class="small">職長が2人以上の時は「山田、佐藤」のように「、」で区切ります</div><button class="btn" data-gadd="' + esc(s.id) + '">足す</button></div>'; });
   }
   render(h);
   $$('.tabs div').forEach(t => t.onclick = () => gTab(t.dataset.t));
