@@ -379,6 +379,7 @@ function nyujoNow(n) {
   if ($('#bKY2')) { $('#bKY2').onclick = viewKY; setTimeout(() => { if ($('#bKY2')) viewKY(true); }, 1500); }   // 入場の後はそのままKYへ（忘れ防止、11/1 中井様）
 }// ---------- KY ----------
 function viewKY(afterIn) {
+  viewKY.t0 = Date.now();
   const ch = S.site.choices || {}, kouteiMap = ch['工程'] || {}, kinds = Object.keys(kouteiMap);
   const r = S.rec || {};
   let h = (afterIn === true ? '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">✓ 入場しました</b>続けて、作業の前にKYを入れてください</div>' : '') + '<h2>① 今日の作業内容</h2><h3>場所</h3>' + chips('basho', ch['場所'] || [], { multi: true });
@@ -398,7 +399,7 @@ function viewKY(afterIn) {
     $('#send').onclick = async () => {
       const kk = chipVal('kk').map(i => items[+i]), mk = chipVal('mk')[0] || '';
       if (!kk.length) { toast('危険のポイントを1つは選んでください'); return; }
-      sendQ('ky', Object.assign(P(), { basho, koutei, kiken: kk, mokuhyou: mk }), { '作業内容': [basho.join('・'), koutei.join('・')].filter(Boolean).join(' ') });
+      sendQ('ky', Object.assign(P(), { basho, koutei, kiken: kk, mokuhyou: mk, secs: Math.round((Date.now() - (viewKY.t0 || Date.now())) / 1000) }), { '作業内容': [basho.join('・'), koutei.join('・')].filter(Boolean).join(' ') });
       done('KYを記録しました', localTime(), '<div class="card"><b>作業内容</b><br>' + esc(S.rec['作業内容']) + '<br><b>安全目標</b><br>' + esc(mk) + '</div>');
     };
   };
@@ -507,7 +508,7 @@ function adminTab(tab) {
   A.tab = tab; const d = A.data;
   let h = '<div class="tabs">' + ['今日', '返事', '切替', '自分'].map(t => '<div data-t="' + t + '" class="' + (t === tab ? 'on' : '') + '">' + t + (t === '返事' && (d.pending.length + d.renraku.length) ? '（' + (d.pending.length + d.renraku.length) + '）' : '') + '</div>').join('') + '</div>';
   if (tab === '今日') {
-    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => '<div class="line">' + esc(r.company) + ' ' + esc(r.foreman) + '　' + esc(r.ninzu) + '名　' + esc(r.in || '—') + '〜' + esc(r.out || '') + (r.chushi ? '　<b style="color:var(--red)">' + esc(r.chushi) + '中止（' + esc(r.riyuu) + '）</b>' : '') + (r.sagyou ? '<br><span class="small">KY：' + esc(r.sagyou) + '</span>' : (r.in && !r.chushi ? '<br><b style="color:var(--red);font-size:14px">⚠ KYまだ</b>' : '')) + (r.ashita ? '<br><span class="small">明日：' + esc(r.ashita) + ' ' + esc(r.ashitaN) + '名</span>' : '') + '</div>').join('') : '<div class="small">まだ誰も押していません</div>') + '</div>'; });
+    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => '<div class="line">' + esc(r.company) + ' ' + esc(r.foreman) + '　' + esc(r.ninzu) + '名　' + esc(r.in || '—') + '〜' + esc(r.out || '') + (r.chushi ? '　<b style="color:var(--red)">' + esc(r.chushi) + '中止（' + esc(r.riyuu) + '）</b>' : '') + ((r.warn || []).map(x => '<br><span style="color:#c77700;font-size:14px;font-weight:600">⚠ ' + esc(x) + '</span>').join('')) + (r.sagyou ? '<br><span class="small">KY：' + esc(r.sagyou) + '</span>' : (r.in && !r.chushi ? '<br><b style="color:var(--red);font-size:14px">⚠ KYまだ</b>' : '')) + (r.ashita ? '<br><span class="small">明日：' + esc(r.ashita) + ' ' + esc(r.ashitaN) + '名</span>' : '') + '</div>').join('') : '<div class="small">まだ誰も押していません</div>') + '</div>'; });
     h += '<button class="btn gray" id="reload">更新</button>';
   }
   if (tab === '返事') {
