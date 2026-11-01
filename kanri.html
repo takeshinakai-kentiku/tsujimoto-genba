@@ -91,6 +91,8 @@ textarea{min-height:100px}
 #tabbar div.on{color:var(--blue)}
 #tabbar span{display:block;font-size:24px;line-height:1.2}
 .menu .btn{text-align:left;padding-left:20px}
+.chips.miss{outline:3px solid var(--red);outline-offset:4px;border-radius:12px;animation:mp 1s ease-in-out 2}
+@keyframes mp{50%{outline-color:transparent}}
 .kk .kk-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .kk .kk-q{font-size:16px}.kk .kk-q b,.kk .kk-a b{display:block;font-size:12px;color:var(--gray);font-weight:600}
 .kk .kk-a{margin-top:8px;background:#eefaf1;border-radius:12px;padding:10px 12px;font-size:17px;font-weight:600}
@@ -332,7 +334,7 @@ function viewHome() {
   const noQR = S.qrNone && S.company !== 'ツジモト';
   if (noQR && !(r['入場'] && r['退場'])) h += '<div class="main lock" id="bLock"><div class="lb">' + (r['入場'] ? '出ました' : '入りました') + '<small>現場に貼ってあるQRをカメラで読むと押せます</small></div><div class="qri">' + ICON.cam + '</div></div>';
   else if (!r['入場']) h += '<div class="main" id="bMain"><div class="lb">入りました<small>押すと人数を聞きます</small></div><div style="font-size:30px">›</div></div>';
-  else if (!r['退場']) h += '<div class="main" id="bMain"><div class="lb">出ました<small>進み・明日の予定は飛ばしてもOK</small></div><div style="font-size:30px">›</div></div>';
+  else if (!r['退場']) h += '<div class="main" id="bMain"><div class="lb">出ました<small>今日の進み・明日の予定を入れて記録</small></div><div style="font-size:30px">›</div></div>';
   else h += '<div class="main done"><div class="lb" style="font-size:20px">お疲れ様でした</div></div>';
   // タイル
   let g = '';
@@ -440,9 +442,22 @@ function viewTaijo() {
   let h = '<h2>本日の進み（一番時間をかけた仕事に ○2つまで）</h2>' + block(1) + block(2);
   if (f['明日']) h += '<div class="card"><h3>明日は</h3>' + chips('as', ['来る', '来ない']) + '人数' + stepper('an', S.ninzu || 1) + '</div>';
   if (f['片付け']) h += '<div class="card"><h3>帰る前に</h3>' + chips('kz', ['片付けた', '戸締りした', '火の元よし'], { multi: true }) + '</div>';
-  h += '<button class="btn big ok" id="go">出ました（記録して送る）</button><div class="small center">進みなどが分からない時は、何も選ばず「出ました」で大丈夫です</div><button class="btn gray" id="bBack">戻る</button>';
+  h += '<button class="btn big ok" id="go">出ました（記録して送る）</button><div class="small center">進み1・明日・帰る前の確認は、全部入れないと送れません（進み2はあれば）</div><button class="btn gray" id="bBack">戻る</button>';
   render(h); $('#bBack').onclick = viewHome;
   $('#go').onclick = async () => {
+    // 入れていない所があれば、そこへ動かして赤く光らせる
+    const need = [['s1b', '進み1の場所'], ['s1k', '進み1の工程'], ['s1d', '進み1のどこまで']];
+    if (f['明日']) need.push(['as', '明日は来るか']);
+    const miss = need.filter(x => !chipVal(x[0]).length);
+    const kzMiss = f['片付け'] && chipVal('kz').length < 3;
+    $$('.chips.miss').forEach(c => c.classList.remove('miss'));
+    if (miss.length || kzMiss) {
+      miss.forEach(x => $('[data-chips="' + x[0] + '"]').classList.add('miss'));
+      if (kzMiss) $('[data-chips="kz"]').classList.add('miss');
+      const first = $('.chips.miss'); if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast('まだ入っていません：' + miss.map(x => x[1]).concat(kzMiss ? ['帰る前の確認（3つ全部）'] : []).join('・'), 5000);
+      return;
+    }
     const susumi = [1, 2].map(i => ({ basho: chipVal('s' + i + 'b')[0] || '', koutei: chipVal('s' + i + 'k')[0] || '', dokomade: chipVal('s' + i + 'd')[0] || '' })).filter(s => s.koutei || s.basho);
     const p = Object.assign(P(), { susumi, ashita: f['明日'] ? (chipVal('as')[0] || '') : '', ashitaNinzu: f['明日'] && $('#an') ? stepVal('an') : '', katazuke: f['片付け'] ? chipVal('kz').join('・') : '' });
     sendQ('taijo', p, { '退場': localTime() });
