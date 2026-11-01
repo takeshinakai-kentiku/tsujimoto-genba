@@ -91,6 +91,10 @@ textarea{min-height:100px}
 #tabbar div.on{color:var(--blue)}
 #tabbar span{display:block;font-size:24px;line-height:1.2}
 .menu .btn{text-align:left;padding-left:20px}
+.kk .kk-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.kk .kk-q{font-size:16px}.kk .kk-q b,.kk .kk-a b{display:block;font-size:12px;color:var(--gray);font-weight:600}
+.kk .kk-a{margin-top:8px;background:#eefaf1;border-radius:12px;padding:10px 12px;font-size:17px;font-weight:600}
+.kk .kk-a b{color:#2e7d32}
 #lb{position:fixed;inset:0;background:#000;z-index:30;display:flex;align-items:center;justify-content:center;touch-action:pinch-zoom}
 #lb img{max-width:100%;max-height:100%;object-fit:contain}
 #lb .lbx{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;color:#fff;background:rgba(255,255,255,.2);border-radius:20px;padding:8px 14px;font-size:16px;font-weight:600}
@@ -308,8 +312,9 @@ function viewHome() {
   b.notices.forEach(n => top += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）</b>' + esc(n.text) + '</div>');
   if (b.yesterdayOpen) top += '<div class="card note"><b>昨日の「出ました」が押されていません</b>昨日（' + esc(b.yesterdayOpen.in) + '入場）は何時に出ましたか' + (S.qrNone && S.company !== 'ツジモト' ? '<br><span class="small">現場のQRを読んで開くと入れられます</span>' : '<input type="time" id="yOut" value="17:00"><button class="btn" id="yOk">この時間で記録</button>') + '</div>';
   if (S.site.rain && r['入場'] && !r['明日']) top += '<div class="card note"><b>☂ 明日は雨の予報です</b>明日はどうしますか<div class="row"><button class="btn" data-a="来る">来る</button><button class="btn red" data-a="来ない">来ない</button></div></div>';
-  (b.replies || []).forEach(k => top += '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">💬 中井の返事（' + esc(k.when.slice(5)) + '）' + esc(k.basho ? '・' + k.basho : '') + '</b><span class="small">' + esc(k.text) + '</span><br>' + esc(k.reply) + '</div>');
+  (b.replies || []).forEach(k => top += '<div class="card note rp" data-rp="' + esc(k.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 中井の返事（' + esc(k.when.slice(5)) + '）' + esc(k.basho ? '・' + k.basho : '') + '</b><span class="small">聞いたこと：' + esc(k.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k.reply) + '</span><br><span class="link" style="font-size:13px">写真とこれまでのやりとりを見る ›</span></div>');
   render(top, '#top');
+  $$('#top [data-rp]').forEach(x => x.onclick = () => { viewKakunin(); });
   if ($('#yOk')) $('#yOk').onclick = async () => { busy(true); await call('taijo', Object.assign(P(), { date: b.yesterdayOpen.date, time: $('#yOut').value })); busy(false); toast('昨日の退場を記録しました'); reboot(); };
   $$('#top [data-a]').forEach(x => x.onclick = async () => { busy(true); S.rec = await call('ashitaOnly', Object.assign(P(), { ashita: x.dataset.a })); busy(false); toast('明日：' + x.dataset.a + ' を記録しました'); viewHome(); });
 
@@ -367,6 +372,13 @@ function showPhoto(src) {
   const d = document.createElement('div'); d.id = 'lb';
   d.innerHTML = '<img src="' + src + '"><div class="lbx">✕ 閉じる</div>';
   d.onclick = () => d.remove(); document.body.appendChild(d);
+}
+function kkCard(k, photoAttr) {
+  const st = k.reply ? '<span class="pill out">返事あり</span>' : '<span class="pill" style="background:#fff4e5;color:#b35c00">返事待ち</span>';
+  return '<div class="card kk"><div class="kk-h"><span class="small">' + esc((k.when || '').slice(5).replace('-', '/')) + (k.basho ? '　' + esc(k.basho) : '') + (k.site && photoAttr === 'data-p' ? '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) : '') + '</span>' + st + '</div>'
+    + '<div class="kk-q"><b>聞いたこと</b>' + esc(k.text || '（写真のみ）') + '</div>'
+    + (k.photos.length ? '<div class="thumbs">' + k.photos.map(x => '<img ' + photoAttr + '="' + esc(x) + '" alt="写真">').join('') + '</div>' : '')
+    + (k.reply ? '<div class="kk-a"><b>中井の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + '</div>' : '') + '</div>';
 }
 function kyFirst() {
   const m = document.createElement('div'); m.id = 'sheet';
@@ -448,10 +460,19 @@ function viewChushi() {
   };
 }
 // ---------- ここどうしますか ----------
+async function loadMyHist(only) {
+  let list = [];
+  try { list = await call('myKakunin', S.siteId, S.company, S.foreman); } catch (e) { if ($('#hist')) $('#hist').innerHTML = '<div class="small">読み込めませんでした</div>'; return; }
+  if (!$('#hist')) return;
+  if (only) list = list.filter(k => k.id === only).concat(list.filter(k => k.id !== only));
+  $('#hist').innerHTML = list.length ? list.map(k => kkCard(k, 'data-mp')).join('') : '<div class="small">まだありません</div>';
+  $$('#hist img[data-mp]').forEach(async im => { try { im.src = await call('kakuninPhoto', S.siteId, S.foreman, im.dataset.mp); im.onclick = () => showPhoto(im.src); } catch (e) { im.alt = '×'; } });
+}
 function viewKakunin() {
   const ch = S.site.choices || {};
-  render('<h2>📷 ここどうしますか</h2><h3>場所</h3>' + chips('bs', ch['場所'] || [], { sub: true }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><button class="btn gray" id="bBack">戻る</button>');
+  render('<h2>📷 ここどうしますか</h2><h3>場所</h3>' + chips('bs', ch['場所'] || [], { sub: true }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><button class="btn gray" id="bBack">戻る</button><h2 style="margin-top:22px">これまでのやりとり</h2><div id="hist"><div class="small">読み込み中…</div></div>');
   $('#bBack').onclick = viewHome;
+  loadMyHist();
   $('#go').onclick = async () => {
     if (!PHOTOS.length && !$('#tx').value.trim()) { toast('写真か文を入れてください'); return; }
     busy(true, '写真を送っています…'); try { await call('kakunin', Object.assign(P(), { basho: chipVal('bs')[0] || '', text: $('#tx').value.trim(), photos: PHOTOS })); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
@@ -529,6 +550,7 @@ function adminTab(tab) {
   if (tab === '返事') {
     if (!d.pending.length && !d.renraku.length) h += '<div class="card">返事待ちはありません</div>';
     d.pending.forEach(k => h += '<div class="card" data-k="' + esc(k.id) + '"><b>📷 ' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + (k.basho ? '　' + esc(k.basho) : '') + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div><textarea placeholder="返事（職長の画面に出ます）"></textarea><button class="btn ok" data-reply="' + esc(k.id) + '">返事を送る</button></div>');
+    h += '<h2 style="margin-top:22px">これまでの返事（30日）</h2><div id="ahist"><div class="small">読み込み中…</div></div>';
     d.renraku.forEach(k => h += '<div class="card"><b>' + (k.kega ? '🚨 ' : '') + esc(k.shurui) + '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div><button class="btn gray" data-done="' + esc(k.id) + '">済にする</button></div>');
   }
   if (tab === '切替') {
@@ -542,7 +564,9 @@ function adminTab(tab) {
   render(h);
   $$('.tabs div').forEach(t => t.onclick = () => adminTab(t.dataset.t));
   if ($('#reload')) $('#reload').onclick = adminStart;
-  $$('img[data-p]').forEach(async im => { try { im.src = await call('adminPhoto', A.pin, im.dataset.p); im.onclick = () => showPhoto(im.src); } catch (e) { im.alt = '×'; } });
+  const loadAdminImgs = () => $$('img[data-p]:not([src])').forEach(async im => { try { im.src = await call('adminPhoto', A.pin, im.dataset.p); im.onclick = () => showPhoto(im.src); } catch (e) { im.alt = '×'; } });
+  loadAdminImgs();
+  if ($('#ahist')) call('adminHistory', A.pin, 30).then(list => { if (!$('#ahist')) return; $('#ahist').innerHTML = list.length ? list.map(k => kkCard(k, 'data-p')).join('') : '<div class="small">まだありません</div>'; loadAdminImgs(); }).catch(() => { if ($('#ahist')) $('#ahist').innerHTML = '<div class="small">読み込めませんでした</div>'; });
   $$('[data-reply]').forEach(b => b.onclick = async () => { const tx = b.parentElement.querySelector('textarea').value.trim(); if (!tx) { toast('返事を書いてください'); return; } busy(true); await call('adminReply', A.pin, b.dataset.reply, tx); busy(false); toast('返事を送りました'); adminStart(); });
   $$('[data-done]').forEach(b => b.onclick = async () => { busy(true); await call('adminRenrakuDone', A.pin, b.dataset.done); busy(false); adminStart(); });
   $$('.tg').forEach(t => t.onclick = async () => { const on = !t.classList.contains('on'); t.classList.toggle('on', on); try { await call('adminSwitch', A.pin, t.dataset.site, t.dataset.f, on); } catch (e) { toast(e.message); t.classList.toggle('on', !on); } });
