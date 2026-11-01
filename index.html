@@ -263,19 +263,20 @@ function applyBoot() {
   viewHome();
 }
 // 起動：前に読んだ内容をすぐ出して、裏で新しくする（遅く感じないように）
-async function reboot() {
+async function reboot(force) {   // force＝画面を必ず描き直す（会社・職長を選んだ時など）
   reboot.at = Date.now();
   let cached = null; try { cached = JSON.parse(LS.get(bootKey()) || 'null'); } catch (e) {}
-  if (cached && cached.today === localDay() && cached.site && (!render.cur || render.cur === 'home')) { S.boot = cached; applyBoot(); }
+  const draw = force || !render.cur || render.cur === 'home';
+  if (cached && cached.today === localDay() && cached.site && draw) { S.boot = cached; applyBoot(); }
   else busy(true, '読み込み中…');
   try {
     const fresh = await call('getBoot', S.siteId, S.company, S.foreman);
     busy(false); S.boot = fresh;
-    if (!render.cur || render.cur === 'home') applyBoot(); else { S.site = S.boot.site; S.rec = mergeOutbox(S.boot.rec || null); }
+    if (draw) applyBoot(); else { S.site = S.boot.site; S.rec = mergeOutbox(S.boot.rec || null); }
     saveBoot();
   } catch (e) {
     busy(false);
-    if (!cached) render('<div class="card">読み込めませんでした。電波の良い所でもう一度開いてください。<br><span class="small">' + esc(e.message || e) + '</span></div><button class="btn" onclick="reboot()">もう一度</button>');
+    if (!cached) render('<div class="card">読み込めませんでした。電波の良い所でもう一度開いてください。<br><span class="small">' + esc(e.message || e) + '</span></div><button class="btn" onclick="reboot(true)">もう一度</button>');
     else toast('電波が弱いので、前に読んだ内容を出しています');
   }
   flushOutbox();
@@ -345,7 +346,7 @@ function viewMenu() {
 function viewSitePick() {
   if (!INIT.admin) { $('#tabbar').style.display = 'none'; render('<div class="card center" style="padding:30px 18px"><div class="qri" style="margin:0 auto 12px;width:64px;height:64px;border-radius:18px;background:#e5f0ff;color:var(--blue);display:flex;align-items:center;justify-content:center">' + ICON.cam + '</div><h2>現場のQRを読んでください</h2><div class="small">現場に貼ってある「入場・KYはここ！」のQRを、携帯のカメラで読むと開きます</div></div>'); return; }
   render('<h2>どの現場ですか</h2><div class="small">現場のQRコードを読むと、この画面は出ません。</div>' + S.boot.sites.map(s => '<button class="btn gray" data-id="' + esc(s.id) + '">' + esc(s.name) + '</button>').join('') + (S.boot.sites.length ? '' : '<div class="card">使える現場がまだありません。中井に連絡してください。</div>'));
-  $$('#main .btn').forEach(b => b.onclick = () => { S.siteId = b.dataset.id; S.qrNone = true; LS.set('site', S.siteId); reboot(); });
+  $$('#main .btn').forEach(b => b.onclick = () => { S.siteId = b.dataset.id; S.qrNone = true; LS.set('site', S.siteId); reboot(true); });
 }
 function visibleCompanies() { return S.boot.companies.filter(c => (c.name !== 'ツジモト' && c.name !== '試し') || isNakai() || TEST); }
 function viewWho() {
@@ -358,7 +359,7 @@ function viewWho() {
     if (!c && chipVal('co')[0] === '一覧に無い会社') { const nm = prompt('会社の名前を書いてください'); if (!nm || !nm.trim()) return; c = { name: nm.trim(), foremen: [] }; }
     if (!c) { $('#fore').innerHTML = ''; return; }
     $('#fore').innerHTML = '<h2>職長は誰ですか</h2>' + chips('fm', c.foremen) + '<input type="text" id="fmOther" placeholder="名前が無い時はここに書く"><button class="btn big" id="fmOk">この名前で進む</button>';
-    $('#fmOk').onclick = () => { const n = ($('#fmOther').value.trim() || chipVal('fm')[0] || ''); if (!n) { toast('名前を選んでください'); return; } S.company = c.name; S.foreman = n; LS.set('company', S.company); LS.set('foreman', S.foreman); reboot(); };
+    $('#fmOk').onclick = () => { const n = ($('#fmOther').value.trim() || chipVal('fm')[0] || ''); if (!n) { toast('名前を選んでください'); return; } S.company = c.name; S.foreman = n; LS.set('company', S.company); LS.set('foreman', S.foreman); reboot(true); };
     $('#fore').scrollIntoView({ behavior: 'smooth' });
   });
 }
@@ -637,12 +638,12 @@ function shinkiForm(old) {
 let A = { pin: LS.get('pin') || '', data: null, tab: '今日', date: '' };
 async function adminStart() {
   $('#tabbar').style.display = 'none';
-  if (!A.pin) { render('<h2>中井の画面</h2><input type="tel" id="pin" placeholder="暗証番号"><button class="btn" id="go">開く</button>' + (INIT.admin ? '' : '<button class="btn gray" id="bBack">戻る</button>'), '#main'); $('#top').innerHTML = ''; if ($('#bBack')) $('#bBack').onclick = reboot; $('#go').onclick = () => { A.pin = $('#pin').value.trim(); adminStart(); }; return; }
+  if (!A.pin) { render('<h2>中井の画面</h2><input type="tel" id="pin" placeholder="暗証番号"><button class="btn" id="go">開く</button>' + (INIT.admin ? '' : '<button class="btn gray" id="bBack">戻る</button>'), '#main'); $('#top').innerHTML = ''; if ($('#bBack')) $('#bBack').onclick = () => reboot(true); $('#go').onclick = () => { A.pin = $('#pin').value.trim(); adminStart(); }; return; }
   busy(true, '読み込み中…');
   try { A.data = await call('adminToday', A.pin, A.date); } catch (e) { busy(false); if (/暗証番号/.test(String(e.message))) { A.pin = ''; LS.set('pin', null); toast(e.message, 0); return adminStart(); } toast(jpErr(e), 0); render('<button class="btn" onclick="adminStart()">もう一度読み込む</button>'); return; }
   busy(false); LS.set('pin', A.pin);
   $('#hdr .site').textContent = '中井の画面'; $('#hdr .who').innerHTML = jpDate(A.data.real || A.data.today) + '　' + esc(A.data.now) + (INIT.admin ? '' : '　<span id="toHome">職長の画面へ</span>');
-  if ($('#toHome')) $('#toHome').onclick = reboot;
+  if ($('#toHome')) $('#toHome').onclick = () => reboot(true);
   $('#top').innerHTML = '';
   adminTab(A.tab);
 }
