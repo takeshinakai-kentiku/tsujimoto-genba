@@ -128,6 +128,7 @@ textarea{min-height:100px}
 #hdr{padding:calc(14px + env(safe-area-inset-top)) 20px 8px}#hdr .site{font-size:32px;line-height:1.2}
 /* 11/1 見直し：字は16px前後以上、色は濃く */
 #qBanner b{display:inline;font-size:17px;color:#8a6d00}
+.chip.free{border-style:dashed;color:var(--blue);background:#f5f9ff}
 #tabbar div{color:#48484a}#tabbar div.on{color:var(--blue)}
 :root{--blue:#0060df;--orange:#d9480f;--gray:#48484a}
 .small{font-size:15px;color:#3a3a3c}
@@ -201,12 +202,18 @@ function render(html, where = '#main') { if (where === '#main') render.cur = ren
 function jpDate(iso) { const d = new Date(iso + 'T00:00:00'); return (d.getMonth() + 1) + '/' + d.getDate() + '（' + '日月火水木金土'[d.getDay()] + '）'; }
 function chips(name, list, opts = {}) { // opts: {multi, sub, value}
   const sel = new Set([].concat(opts.value || []));
-  return '<div class="chips" data-chips="' + esc(name) + '" data-multi="' + (opts.multi ? 1 : 0) + '" data-opt="' + (opts.opt ? 1 : 0) + '" data-max="' + (opts.max || 0) + '">' + list.map(v => '<div class="chip' + (opts.sub ? ' sub' : '') + (sel.has(v) ? ' on' : '') + '" data-v="' + esc(v) + '">' + esc(v) + '</div>').join('') + '</div>';
+  const extra = [...sel].filter(v => v && list.indexOf(v) < 0);   // 前に手で書いた物も出す
+  return '<div class="chips" data-chips="' + esc(name) + '" data-multi="' + (opts.multi ? 1 : 0) + '" data-opt="' + (opts.opt ? 1 : 0) + '" data-max="' + (opts.max || 0) + '">' + list.concat(extra).map(v => '<div class="chip' + (opts.sub ? ' sub' : '') + (sel.has(v) ? ' on' : '') + '" data-v="' + esc(v) + '">' + esc(v) + '</div>').join('') + (opts.free ? '<div class="chip sub free" data-v="__free__">＋書く</div>' : '') + '</div>';
 }
 function chipVal(name) { const box = $('[data-chips="' + name + '"]'); if (!box) return []; return $$('[data-chips="' + name + '"] .chip.on').map(c => c.dataset.v); }
 document.addEventListener('click', e => {
   const c = e.target.closest('.chip'); if (!c) return;
   const box = c.parentElement, multi = box.dataset.multi === '1', max = +box.dataset.max;
+  if (c.dataset.v === '__free__') {   // 選ぶ物に無い時は手で書く
+    const s = prompt('書いてください'); if (!s || !s.trim()) return;
+    const n = document.createElement('div'); n.className = 'chip' + (c.classList.contains('sub') ? ' sub' : ''); n.dataset.v = s.trim(); n.textContent = s.trim();
+    box.insertBefore(n, c); n.click(); return;
+  }
   if (!multi) { const off = box.dataset.opt === '1' && c.classList.contains('on'); box.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c && !off)); }
   else { if (!c.classList.contains('on') && max && box.querySelectorAll('.chip.on').length >= max) { toast(max + 'つまでです'); return; } c.classList.toggle('on'); }
   box.classList.remove('miss');
@@ -465,16 +472,23 @@ function nyujoNow(n) {
   done('入りました（' + n + '名）', S.rec['入場'], S.site.features.KY && !S.rec['作業内容'] ? '<button class="btn big" id="bKY2">続けて KY を入れる</button>' : '');
   if ($('#bKY2')) { $('#bKY2').onclick = viewKY; setTimeout(() => { if ($('#bKY2')) viewKY(true); }, 1500); }   // 入場の後はそのままKYへ（忘れ防止、11/1 中井様）
 }// ---------- KY ----------
+function places(ch) {
+  const all = (ch['場所'] || []).filter(x => !/^他（/.test(x));
+  const men = ch['面'] || all.filter(x => /面$/.test(x));
+  let bui = ch['部位'] || all.filter(x => !/面$/.test(x));
+  if (!ch['部位'] && bui.indexOf('外壁') < 0) bui = ['外壁'].concat(bui);
+  return { men, bui };
+}
 function viewKY(afterIn) {
   viewKY.t0 = Date.now(); $('#tabbar').style.display = 'none';
   const ch = S.site.choices || {}, kouteiMap = ch['工程'] || {}, kinds = Object.keys(kouteiMap);
   const r = S.rec || {};
-  let h = (afterIn === true ? '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">✓ 入場しました</b>続けて、作業の前にKYを入れてください</div>' : '') + '<h2>① 今日の作業内容</h2><h3>場所</h3>' + chips('basho', ch['場所'] || [], { multi: true });
-  kinds.forEach(k => h += '<h3>' + esc(k) + 'の工程</h3>' + chips('kt_' + k, kouteiMap[k], { multi: true }));
+  let h = (afterIn === true ? '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">✓ 入場しました</b>続けて、作業の前にKYを入れてください</div>' : '') + '<h2>① 今日の作業内容</h2><div class="small">方角 → 部位 → 工程 の順に選んでください（無い時は「＋書く」）</div><div class="card"><h3>方角</h3>' + chips('basho', places(ch).men, { multi: true, free: true }) + '</div><div class="card"><h3>部位</h3>' + chips('bui', places(ch).bui, { multi: true, free: true }) + '</div>';
+  kinds.forEach(k => h += '<div class="card"><h3>工程（' + esc(k) + '）</h3>' + chips('kt_' + k, kouteiMap[k], { multi: true, free: true }) + '</div>');
   h += '<button class="btn" id="next1">次へ（危険のポイント）</button><button class="btn gray" id="bBack">戻る</button>';
   render(h); $('#bBack').onclick = viewHome;
   $('#next1').onclick = () => {
-    const basho = chipVal('basho'), koutei = [], keys = [];
+    const basho = chipVal('basho'), bui = chipVal('bui'), koutei = [], keys = [];
     kinds.forEach(k => chipVal('kt_' + k).forEach(v => { koutei.push(v); keys.push(k + '/' + v); }));
     if (kinds.length && !koutei.length) { $$('[data-chips^="kt_"]').forEach(c => c.classList.add('miss')); const k0 = $('[data-chips^="kt_"]'); if (k0) k0.scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('工程を1つは選んでください', 0); return; }
     const items = []; const seen = new Set();
@@ -487,7 +501,7 @@ function viewKY(afterIn) {
       const kk = chipVal('kk').map(i => items[+i]), mk = chipVal('mk')[0] || '';
       if (!kk.length) { $('[data-chips="kk"]').classList.add('miss'); $('[data-chips="kk"]').scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('危険のポイントを1つは選んでください', 0); return; }
       if (!mk) { $('[data-chips="mk"]').classList.add('miss'); $('[data-chips="mk"]').scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('本日の安全目標を1つ選んでください', 0); return; }
-      sendQ('ky', Object.assign(P(), { basho, koutei, kiken: kk, mokuhyou: mk, secs: Math.round((Date.now() - (viewKY.t0 || Date.now())) / 1000) }), { '作業内容': [basho.join('・'), koutei.join('・')].filter(Boolean).join(' ') });
+      sendQ('ky', Object.assign(P(), { basho, bui, koutei, kiken: kk, mokuhyou: mk, secs: Math.round((Date.now() - (viewKY.t0 || Date.now())) / 1000) }), { '作業内容': [basho.join('・'), bui.join('・'), koutei.join('・')].filter(Boolean).join(' ') });
       done('KYを記録しました', localTime(), '<div class="card"><b>作業内容</b><br>' + esc(S.rec['作業内容']) + '<br><b>安全目標</b><br>' + esc(mk) + '</div>');
     };
   };
@@ -502,9 +516,10 @@ function viewTaijo() {
   const shu = (S.rec || {})['中止'] === '終日';   // 終日中止の日は進みは要らない
   // 朝のKYで選んだ場所・工程を、進み1に最初から入れておく（「妻壁・矢切・モール」のように・が入った名前も拾う）
   const sg = String((S.rec || {})['作業内容'] || '');
-  const pb = (ch['場所'] || []).filter(x => sg.indexOf(x) >= 0)[0], pk = allK.filter(x => sg.indexOf(x) >= 0)[0];
-  const block = (i, b0, k0) => '<div class="card"' + (i === 2 ? ' id="s2box" style="display:none"' : '') + '><h3>進み ' + i + (i === 2 ? '（あれば）' : '') + '</h3>場所' + chips('s' + i + 'b', ch['場所'] || [], { sub: true, value: b0, opt: i === 2 || shu }) + '工程' + chips('s' + i + 'k', allK, { sub: true, value: k0, opt: i === 2 || shu }) + 'どこまで' + chips('s' + i + 'd', doko, { sub: true, opt: i === 2 || shu }) + '</div>';
-  let h = (shu ? '<div class="card note"><b>今日は終日中止です</b>進みは入れなくて大丈夫です</div>' : '') + '<h2>本日の進み</h2><div class="small">一番時間をかけた仕事。朝のKYの内容を入れてあります</div>' + block(1, pb, pk) + '<button class="btn gray" id="more2">＋ もう1つある（進み2）</button>' + block(2);
+  const PL = places(ch);
+  const pb = PL.men.filter(x => sg.indexOf(x) >= 0)[0], pu = PL.bui.filter(x => sg.indexOf(x) >= 0)[0], pk = allK.filter(x => sg.indexOf(x) >= 0)[0];
+  const block = (i, b0, k0, u0) => '<div class="card"' + (i === 2 ? ' id="s2box" style="display:none"' : '') + '><h3>進み ' + i + (i === 2 ? '（あれば）' : '') + '</h3>方角' + chips('s' + i + 'b', PL.men, { sub: true, value: b0, opt: i === 2 || shu, free: true }) + '部位' + chips('s' + i + 'u', PL.bui, { sub: true, value: u0, opt: true, free: true }) + '工程' + chips('s' + i + 'k', allK, { sub: true, value: k0, opt: i === 2 || shu, free: true }) + 'どこまで' + chips('s' + i + 'd', doko, { sub: true, opt: i === 2 || shu }) + '</div>';
+  let h = (shu ? '<div class="card note"><b>今日は終日中止です</b>進みは入れなくて大丈夫です</div>' : '') + '<h2>本日の進み</h2><div class="small">一番時間をかけた仕事。朝のKYの内容を入れてあります</div>' + block(1, pb, pk, pu) + '<button class="btn gray" id="more2">＋ もう1つある（進み2）</button>' + block(2);
   if (f['明日']) h += '<div class="card"><h3>明日は</h3>' + chips('as', ['来る', '来ない']) + '<div id="anw">人数' + stepper('an', S.ninzu || 1) + '</div></div>';
   if (f['片付け']) h += '<div class="card"><h3>帰る前に</h3>' + chips('kz', ['全部よし（片付け・戸締り・火の元）']) + '</div>';
   h += '<button class="btn big ok" id="go">出ました（記録して送る）</button><div class="small center">進み1・明日・帰る前の確認を入れると送れます</div><button class="btn gray" id="bBack">戻る</button>';
@@ -514,7 +529,7 @@ function viewTaijo() {
   $('#go').onclick = async () => {
     if (!viewTaijo.ok) { viewHome(); toast('QRを読んでから10分たちました。もう一度、現場のQRをカメラで読んでください', 0); return; }
     // 入れていない所があれば、そこへ動かして赤く光らせる
-    const need = shu ? [] : [['s1b', '進み1の場所'], ['s1k', '進み1の工程'], ['s1d', '進み1のどこまで']].filter(x => $('[data-chips="' + x[0] + '"] .chip'));   // 選択肢の無い欄は要らない
+    const need = shu ? [] : [['s1b', '進み1の方角'], ['s1k', '進み1の工程'], ['s1d', '進み1のどこまで']].filter(x => $('[data-chips="' + x[0] + '"] .chip'));   // 選択肢の無い欄は要らない
     if (f['明日']) need.push(['as', '明日は来るか']);
     const miss = need.filter(x => !chipVal(x[0]).length);
     const kzMiss = f['片付け'] && !chipVal('kz').length;
@@ -526,7 +541,7 @@ function viewTaijo() {
       toast('まだ入っていません：' + miss.map(x => x[1]).concat(kzMiss ? ['帰る前の確認'] : []).join('・'), 0);
       return;
     }
-    const susumi = [1, 2].map(i => ({ basho: chipVal('s' + i + 'b')[0] || '', koutei: chipVal('s' + i + 'k')[0] || '', dokomade: chipVal('s' + i + 'd')[0] || '' })).filter(s => s.koutei || s.basho);
+    const susumi = [1, 2].map(i => ({ basho: chipVal('s' + i + 'b')[0] || '', bui: chipVal('s' + i + 'u')[0] || '', koutei: chipVal('s' + i + 'k')[0] || '', dokomade: chipVal('s' + i + 'd')[0] || '' })).filter(s => s.koutei || s.basho || s.bui);
     const asV = f['明日'] ? (chipVal('as')[0] || '') : '';
     const p = Object.assign(P(), { susumi, ashita: asV, ashitaNinzu: asV === '来る' && $('#an') ? stepVal('an') : '', katazuke: f['片付け'] ? '全部よし' : '', qrNone: !qrOK() });
     sendQ('taijo', p, { '退場': localTime() });
@@ -554,7 +569,7 @@ async function loadMyHist(only) {
 }
 function viewKakunin() {
   const ch = S.site.choices || {};
-  render('<h2>📷 ここどうしますか</h2><h3>場所</h3>' + chips('bs', ch['場所'] || [], { sub: true, opt: true }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><button class="btn gray" id="bBack">戻る</button><h2 style="margin-top:22px">これまでのやりとり</h2><div id="hist"><div class="small">読み込み中…</div></div>');
+  render('<h2>📷 ここどうしますか</h2><h3>場所</h3>' + chips('bs', (ch['場所'] || []).concat(['外壁']), { sub: true, opt: true, free: true }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><button class="btn gray" id="bBack">戻る</button><h2 style="margin-top:22px">これまでのやりとり</h2><div id="hist"><div class="small">読み込み中…</div></div>');
   $('#bBack').onclick = viewHome;
   loadMyHist();
   $('#go').onclick = async () => {
