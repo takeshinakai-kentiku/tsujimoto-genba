@@ -178,6 +178,7 @@ input[type=time],input[type=date]{-webkit-appearance:none;appearance:none;displa
 #sheet .esh .esc{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex:1;padding-bottom:8px}
 #sheet .esh .efoot{display:flex;gap:10px;padding:8px 0 calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line)}
 #sheet .esh .efoot .btn{margin:0;flex:1}
+.dbar{padding:10px 12px}.dbar .row{align-items:center;gap:8px}.dbar .row .btn{flex:0 0 52px;min-height:50px;margin:0;font-size:18px}.dbar input[type=date]{flex:1;margin:0;min-height:50px;text-align:center}.dbar .qr-chips{margin:8px 0 0}
 .mini{display:inline-block;color:var(--red);font-size:15px;font-weight:700;margin:-4px 0 10px}
 </style>
 </head>
@@ -789,7 +790,7 @@ function adminTab(tab) {
   let h = '<div class="tabs">' + ['今日', '返事', '切替', '自分'].map(t => '<div data-t="' + t + '" class="' + (t === tab ? 'on' : '') + '">' + t + (t === '返事' && (d.pending.length + d.renraku.length) ? '（' + (d.pending.length + d.renraku.length) + '）' : '') + '</div>').join('') + '</div>';
   if (tab === '今日') {
     // 過去の日へすぐ飛べるように：日付を選ぶ欄＋よく使う日のボタン（11/1 中井様「前の日をずっと押すのは操作性が悪い」）
-    h += '<div class="card"><h3>見る日</h3><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><div class="qr-chips">' + [['今日', 0], ['昨日', -1], ['おととい', -2], ['1週間前', -7], ['1か月前', -30]].map(x => '<span data-jump="' + x[1] + '">' + x[0] + '</span>').join('') + '</div><div class="row"><button class="btn gray" id="dPrev">◀ 前の日</button><button class="btn gray" id="dNext"' + (d.today >= d.real ? ' disabled' : '') + '>次の日 ▶</button></div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2><div class="small">カードを押すと、時刻・人数・中止を直せます</div>';
+    h += '<div class="card dbar"><div class="row"><button class="btn gray" id="dPrev" aria-label="前の日">◀</button><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><button class="btn gray" id="dNext" aria-label="次の日"' + (d.today >= d.real ? ' disabled' : '') + '>▶</button></div><div class="qr-chips">' + [['今日', 0], ['昨日', -1], ['おととい', -2], ['1週間前', -7], ['1か月前', -30]].map(x => '<span data-jump="' + x[1] + '">' + x[0] + '</span>').join('') + '</div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2><div class="small">カードを押すと、時刻・人数・中止を直せます</div>';
     A.recs = [];
     d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => recCard(r, A.recs.push(r) - 1)).join('') : '<div class="small">まだ誰も押していません</div>') + '<div style="margin-top:12px"><span class="link" data-add="' + esc(s.id) + '">＋ 押し忘れの記録を足す</span></div></div>'; });
     h += '<button class="btn gray" id="reload">更新</button>';
