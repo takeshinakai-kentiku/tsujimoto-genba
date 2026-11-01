@@ -376,12 +376,12 @@ function nyujoNow(n) {
   sendQ('nyujo', Object.assign(P(), { ninzu: n, qrNone: S.qrNone }), { '入場': localTime(), '人数': String(n), 'QRなし': S.qrNone ? '○' : '', '中止': '', '中止の理由': '' });
   S.ninzu = n; LS.set('ninzu', n); LS.set('last', JSON.stringify({ what: '入場', ts: Date.now() }));
   done('入りました（' + n + '名）', S.rec['入場'], S.site.features.KY && !S.rec['作業内容'] ? '<button class="btn big" id="bKY2">続けて KY を入れる</button>' : '');
-  if ($('#bKY2')) $('#bKY2').onclick = viewKY;
+  if ($('#bKY2')) { $('#bKY2').onclick = viewKY; setTimeout(() => { if ($('#bKY2')) viewKY(true); }, 1500); }   // 入場の後はそのままKYへ（忘れ防止、11/1 中井様）
 }// ---------- KY ----------
-function viewKY() {
+function viewKY(afterIn) {
   const ch = S.site.choices || {}, kouteiMap = ch['工程'] || {}, kinds = Object.keys(kouteiMap);
   const r = S.rec || {};
-  let h = '<h2>① 今日の作業内容</h2><h3>場所</h3>' + chips('basho', ch['場所'] || [], { multi: true });
+  let h = (afterIn === true ? '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">✓ 入場しました</b>続けて、作業の前にKYを入れてください</div>' : '') + '<h2>① 今日の作業内容</h2><h3>場所</h3>' + chips('basho', ch['場所'] || [], { multi: true });
   kinds.forEach(k => h += '<h3>' + esc(k) + 'の工程</h3>' + chips('kt_' + k, kouteiMap[k], { multi: true }));
   h += '<button class="btn" id="next1">次へ（危険のポイント）</button><button class="btn gray" id="bBack">戻る</button>';
   render(h); $('#bBack').onclick = viewHome;
