@@ -394,7 +394,7 @@ async function flushOutbox(manual) {   // manual＝「今すぐ送る」を押�
     try {
       const rec = await call(it.fn, Object.assign(it.payload, { sent: Date.now() }));
       a = outbox().filter(x => x.id !== it.id); setOutbox(a);
-      flushOutbox.seq = (flushOutbox.seq || 0) + 1;
+      flushOutbox.seq = (flushOutbox.seq || 0) + 1; sendState.rej = 0;   // 後の物が届いたら「届けられなかった」の表示は消す（知らせは上に残る）
       if (rec && it.key === recKey() && !a.some(x => x.key === it.key)) { S.rec = rec; saveBoot(); }
     } catch (e) {
       // 窓口が「中身が違う」と断った物は、何度送っても通らない → すぐ列から外して残す（後ろの記録が止まらないように）
