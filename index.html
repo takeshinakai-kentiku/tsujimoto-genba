@@ -310,7 +310,7 @@ function viewHome() {
   // 大きいボタン＝次にやること
   const noQR = S.qrNone && S.company !== 'ツジモト';
   if (noQR && !(r['入場'] && r['退場'])) h += '<div class="main lock" id="bLock"><div class="lb">' + (r['入場'] ? '出ました' : '入りました') + '<small>現場に貼ってあるQRをカメラで読むと押せます</small></div><div class="qri">' + ICON.cam + '</div></div>';
-  else if (!r['入場']) h += '<div class="main" id="bMain"><div class="lb">入りました<small>押すと今の時刻で記録</small></div><div class="ms" id="ms"><button data-d="-1">−</button><b id="msN">' + (S.ninzu || 1) + '</b><i>名</i><button data-d="1">＋</button></div></div>';
+  else if (!r['入場']) h += '<div class="main" id="bMain"><div class="lb">入りました<small>押すと人数を聞きます</small></div><div style="font-size:30px">›</div></div>';
   else if (!r['退場']) h += '<div class="main" id="bMain"><div class="lb">出ました<small>進み・明日の予定は飛ばしてもOK</small></div><div style="font-size:30px">›</div></div>';
   else h += '<div class="main done"><div class="lb" style="font-size:20px">お疲れ様でした</div></div>';
   // タイル
@@ -326,7 +326,7 @@ function viewHome() {
   render.keepTop = true; render(h); render.keepTop = false; sendState();
   if ($('#ms')) $$('#ms button').forEach(x => x.onclick = e => { e.stopPropagation(); const n = $('#msN'); n.textContent = Math.max(1, +n.textContent + +x.dataset.d); });
   if ($('#bLock')) $('#bLock').onclick = () => toast('「入りました」「出ました」は、現場に貼ってあるQRをカメラで読んで開いた時だけ押せます。中止・ここどうしますか・頼み事はこのままで押せます', 6000);
-  if ($('#bMain')) $('#bMain').onclick = () => !r['入場'] ? confirmNinzu(+$('#msN').textContent) : viewTaijo();
+  if ($('#bMain')) $('#bMain').onclick = () => !r['入場'] ? confirmNinzu(S.ninzu || 1) : viewTaijo();
   if ($('#bUndo')) $('#bUndo').onclick = () => cancel(canOut ? '退場' : '入場');
   if ($('#bKY')) $('#bKY').onclick = viewKY;
   if ($('#bKk')) $('#bKk').onclick = viewKakunin;
