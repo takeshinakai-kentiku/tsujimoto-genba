@@ -91,6 +91,11 @@ textarea{min-height:100px}
 #tabbar div.on{color:var(--blue)}
 #tabbar span{display:block;font-size:24px;line-height:1.2}
 .menu .btn{text-align:left;padding-left:20px}
+.kywarn{display:flex;align-items:center;gap:12px;background:#fff4e5;border:2px solid var(--orange);border-radius:18px;padding:14px;margin-bottom:12px;cursor:pointer;animation:kwp 1.6s ease-in-out infinite}
+.kywarn .kw-ic{width:44px;height:44px;border-radius:12px;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 44px}.kywarn .kw-ic svg{width:26px;height:26px}
+.kywarn b{display:block;font-size:20px;color:#b35c00}.kywarn span{font-size:14px;color:#6b4a1f}
+.kywarn .kw-go{margin-left:auto;background:var(--orange);color:#fff;font-weight:700;border-radius:12px;padding:8px 12px;font-size:15px;white-space:nowrap}
+@keyframes kwp{0%,100%{box-shadow:0 0 0 0 rgba(255,149,0,.35)}50%{box-shadow:0 0 0 8px rgba(255,149,0,0)}}
 .main.lock{background:#e5e5ea;color:#3a3a3c;box-shadow:none}
 .main.lock .lb small{opacity:1;color:#6b6b70}
 .main .qri{width:46px;height:46px;border-radius:14px;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center}.main .qri svg{width:26px;height:26px}
@@ -299,13 +304,15 @@ function viewHome() {
   if ($('#yOk')) $('#yOk').onclick = async () => { busy(true); await call('taijo', Object.assign(P(), { date: b.yesterdayOpen.date, time: $('#yOut').value })); busy(false); toast('昨日の退場を記録しました'); reboot(); };
   $$('#top [data-a]').forEach(x => x.onclick = async () => { busy(true); S.rec = await call('ashitaOnly', Object.assign(P(), { ashita: x.dataset.a })); busy(false); toast('明日：' + x.dataset.a + ' を記録しました'); viewHome(); });
 
+  const kyMada = f.KY && r['入場'] && !r['作業内容'] && !r['中止'];
   // 今日の状態
   let pill = '<span class="pill">まだ</span>';
   if (r['中止']) pill = '<span class="pill stop">' + esc(r['中止']) + '中止</span>';
   else if (r['退場']) pill = '<span class="pill out">退場済</span>';
   else if (r['入場']) pill = '<span class="pill in">作業中</span>';
   const canIn = r['入場'] && recent('入場') && !r['退場'], canOut = r['退場'] && recent('退場');
-  let h = '<div class="card status"><div><div class="t">入場' + (r['人数'] ? '・' + esc(r['人数']) + '名' : '') + '</div><div class="v">' + esc(r['入場'] || '—:—') + '</div></div><div><div class="t">退場</div><div class="v">' + esc(r['退場'] || '—:—') + '</div></div>' + pill + '</div>';
+  let h = kyMada ? '<div class="kywarn" id="kyWarn"><div class="kw-ic">' + ICON.ky + '</div><div><b>KYがまだです</b><span>作業の前に入れてください</span></div><div class="kw-go">入れる ›</div></div>' : '';
+  h += '<div class="card status"><div><div class="t">入場' + (r['人数'] ? '・' + esc(r['人数']) + '名' : '') + '</div><div class="v">' + esc(r['入場'] || '—:—') + '</div></div><div><div class="t">退場</div><div class="v">' + esc(r['退場'] || '—:—') + '</div></div>' + pill + '</div>';
   if (canIn || canOut) h += '<div class="center" style="margin:-4px 0 10px"><span class="link" id="bUndo">押し間違い？（' + (canOut ? '退場' : '入場') + 'を取り消す）</span></div>';
   // 大きいボタン＝次にやること
   const noQR = S.qrNone && S.company !== 'ツジモト';
@@ -315,7 +322,7 @@ function viewHome() {
   else h += '<div class="main done"><div class="lb" style="font-size:20px">お疲れ様でした</div></div>';
   // タイル
   let g = '';
-  if (f.KY) g += tile('bKY', 'var(--orange)', ICON.ky, 'KY', r['作業内容'] ? '✓ ' + esc(r['作業内容']) : '作業の前に', r['作業内容'] ? ' ok' : '');
+  if (f.KY) g += tile('bKY', 'var(--orange)', ICON.ky, 'KY', r['作業内容'] ? '✓ ' + esc(r['作業内容']) : '作業の前に', r['作業内容'] ? ' ok' : '').replace('</div></div>', '</div>' + (kyMada ? '<span class="bd">まだ</span>' : '') + '</div>');
   if (f['確認']) g += tile('bKk', 'var(--green)', ICON.cam, 'ここどうしますか', '写真で中井へ').replace('</div></div>', '</div>' + (b.pending ? '<span class="bd">返事待ち' + b.pending + '</span>' : '') + '</div>');
   if (f['頼み事']) g += tile('bTn', 'var(--purple)', ICON.pen, '頼み事', '中井へ');
   g += tile('bCh', 'var(--red)', ICON.umb, '中止', r['中止'] ? '✓ ' + esc(r['中止']) + '（' + esc(r['中止の理由']) + '）' : '雨・風など');
@@ -326,9 +333,10 @@ function viewHome() {
   render.keepTop = true; render(h); render.keepTop = false; sendState();
   if ($('#ms')) $$('#ms button').forEach(x => x.onclick = e => { e.stopPropagation(); const n = $('#msN'); n.textContent = Math.max(1, +n.textContent + +x.dataset.d); });
   if ($('#bLock')) $('#bLock').onclick = () => toast('「入りました」「出ました」は、現場に貼ってあるQRをカメラで読んで開いた時だけ押せます。中止・ここどうしますか・頼み事はこのままで押せます', 6000);
-  if ($('#bMain')) $('#bMain').onclick = () => !r['入場'] ? confirmNinzu(S.ninzu || 1) : viewTaijo();
+  if ($('#bMain')) $('#bMain').onclick = () => !r['入場'] ? confirmNinzu(S.ninzu || 1) : (kyMada ? kyFirst() : viewTaijo());
   if ($('#bUndo')) $('#bUndo').onclick = () => cancel(canOut ? '退場' : '入場');
   if ($('#bKY')) $('#bKY').onclick = viewKY;
+  if ($('#kyWarn')) $('#kyWarn').onclick = viewKY;
   if ($('#bKk')) $('#bKk').onclick = viewKakunin;
   $('#bCh').onclick = viewChushi;
   if ($('#bOut')) $('#bOut').onclick = () => confirm('まだ「入りました」を押していません。退場だけ記録しますか') ? viewTaijo() : null;
@@ -344,6 +352,14 @@ function done(title, time, extra = '') {
   render('<div class="card center" style="padding:28px 16px"><div style="font-size:54px;color:var(--green)">✓</div><h2 style="margin:0">' + esc(title) + '</h2><div class="time">' + esc(time) + '</div><div class="small" id="sendSt"></div></div>' + extra + '<button class="btn gray" id="bBack">ホームへ戻る</button>');
   $('#bBack').onclick = () => viewHome();
   sendState();
+}
+function kyFirst() {
+  const m = document.createElement('div'); m.id = 'sheet';
+  m.innerHTML = '<div class="sh"><div class="grab"></div><h2 class="center" style="margin:6px 0 2px;color:#c77700">KYがまだです</h2><div class="small center">今日のKYが入っていません。先に入れてから帰ってください</div><button class="btn big" id="k1">KYを入れる</button><button class="btn gray" id="k2">KYなしで 出ました</button></div>';
+  document.body.appendChild(m);
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  $('#k1').onclick = () => { m.remove(); viewKY(); };
+  $('#k2').onclick = () => { m.remove(); viewTaijo(); };
 }
 // ---------- 入場：人数を確かめる窓 → 記録 ----------
 function confirmNinzu(n) {
@@ -491,7 +507,7 @@ function adminTab(tab) {
   A.tab = tab; const d = A.data;
   let h = '<div class="tabs">' + ['今日', '返事', '切替', '自分'].map(t => '<div data-t="' + t + '" class="' + (t === tab ? 'on' : '') + '">' + t + (t === '返事' && (d.pending.length + d.renraku.length) ? '（' + (d.pending.length + d.renraku.length) + '）' : '') + '</div>').join('') + '</div>';
   if (tab === '今日') {
-    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => '<div class="line">' + esc(r.company) + ' ' + esc(r.foreman) + '　' + esc(r.ninzu) + '名　' + esc(r.in || '—') + '〜' + esc(r.out || '') + (r.chushi ? '　<b style="color:var(--red)">' + esc(r.chushi) + '中止（' + esc(r.riyuu) + '）</b>' : '') + (r.sagyou ? '<br><span class="small">KY：' + esc(r.sagyou) + '</span>' : '') + (r.ashita ? '<br><span class="small">明日：' + esc(r.ashita) + ' ' + esc(r.ashitaN) + '名</span>' : '') + '</div>').join('') : '<div class="small">まだ誰も押していません</div>') + '</div>'; });
+    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => '<div class="line">' + esc(r.company) + ' ' + esc(r.foreman) + '　' + esc(r.ninzu) + '名　' + esc(r.in || '—') + '〜' + esc(r.out || '') + (r.chushi ? '　<b style="color:var(--red)">' + esc(r.chushi) + '中止（' + esc(r.riyuu) + '）</b>' : '') + (r.sagyou ? '<br><span class="small">KY：' + esc(r.sagyou) + '</span>' : (r.in && !r.chushi ? '<br><b style="color:var(--red);font-size:14px">⚠ KYまだ</b>' : '')) + (r.ashita ? '<br><span class="small">明日：' + esc(r.ashita) + ' ' + esc(r.ashitaN) + '名</span>' : '') + '</div>').join('') : '<div class="small">まだ誰も押していません</div>') + '</div>'; });
     h += '<button class="btn gray" id="reload">更新</button>';
   }
   if (tab === '返事') {
