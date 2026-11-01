@@ -154,6 +154,7 @@ h3{font-size:16px;color:#3a3a3c}
 .qr-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.qr-chips span{background:#eefaf1;color:#1e6b33;border-radius:12px;padding:9px 12px;font-size:15px;font-weight:600}
 #bdw select{flex:1;min-width:0}
 .newbtn{background:#fff4e5;border:2px solid var(--orange);color:#8a3500}
+input[type=time],input[type=date]{-webkit-appearance:none;appearance:none;display:block;max-width:100%;min-height:54px;text-align:left}
 .rec-edit{cursor:pointer}.rec-edit:active{background:#f2f2f7}
 </style>
 </head>
@@ -671,10 +672,12 @@ function editRec(r, isNew) {
     + '<button class="btn big" id="eOk">保存する</button><button class="btn gray" id="eNo">やめる</button></div>';
   document.body.appendChild(m);
   $('#eNo').onclick = () => m.remove();
+  $('[data-chips="eCh"]').addEventListener('chipchange', () => { $('#eRyw').style.display = (chipVal('eCh')[0] || 'なし') === 'なし' ? 'none' : 'block'; });   // 中止なしの時は理由を出さない（11/1 中井様）
   $('#eOk').onclick = async () => {
     const ch = chipVal('eCh')[0] || 'なし';
     const x = { siteId: r.siteId, date: r.date, company: isNew ? $('#eCo').value.trim() : r.company, foreman: isNew ? $('#eFm').value.trim() : r.foreman, in: $('#eIn').value, out: $('#eOut').value, ninzu: $('#eN').value, chushi: ch === 'なし' ? '' : ch, riyuu: ch === 'なし' ? '' : (chipVal('eRy')[0] || '') };
     if (!x.company || !x.foreman) { toast('会社と職長を入れてください', 0); return; }
+    if (x.chushi && !x.riyuu) { toast('中止の理由を選んでください', 0); return; }
     busy(true, '保存しています…'); try { await call('adminEdit', A.pin, x); m.remove(); toast('直しました'); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); }
   };
 }
