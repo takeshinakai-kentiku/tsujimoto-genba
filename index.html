@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ツジモト現場">
+<meta name="theme-color" content="#f2f2f7">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>ツジモト現場</title>
+<style>
+:root{--blue:#0a84ff;--red:#ff3b30;--green:#34c759;--orange:#ff9500;--purple:#5856d6;--bg:#f2f2f7;--line:#e5e5ea;--txt:#111;--gray:#6b6b70}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;font-size:18px;line-height:1.45;padding-bottom:110px}
+#hdr{padding:18px 20px 6px}
+#hdr .site{font-size:30px;font-weight:800;letter-spacing:.02em}
+#hdr .who{font-size:15px;color:var(--gray);margin-top:2px}
+#hdr .who span{color:var(--blue);font-weight:600;margin-left:6px}
+#top,#main{padding:8px 16px 0}
+.card{background:#fff;border:none;border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.note{background:#fff8e1;border-left:5px solid #ffb300;font-size:17px}
+.note b{display:block;font-size:14px;margin-bottom:2px;color:#8a6d00}
+.btn{display:block;width:100%;border:none;border-radius:16px;background:var(--blue);color:#fff;font-size:21px;font-weight:700;min-height:62px;margin:10px 0;padding:14px;text-align:center;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.btn.big{min-height:76px;font-size:25px;font-weight:800}
+.btn.red{background:var(--red)}
+.btn.gray{background:#fff;color:var(--blue)}
+.btn.ok{background:var(--blue)}
+.btn:disabled{opacity:.5}
+.btn small{display:block;font-size:14px;font-weight:500;opacity:.85}
+.row{display:flex;gap:10px}
+.row .btn{flex:1;font-size:17px;min-height:56px;margin:6px 0;padding:10px 6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+.chip{border:2px solid var(--line);color:var(--txt);background:#fff;border-radius:14px;padding:13px 16px;font-size:18px;font-weight:600;min-height:54px;cursor:pointer;transition:background .1s}
+.chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.chip.on::before{content:"✓ "}
+.chip.sub{font-size:16px;font-weight:500}
+h2{font-size:22px;font-weight:800;margin:8px 0 6px}
+h3{font-size:15px;margin:14px 0 4px;color:var(--gray);font-weight:600}
+.stat{font-size:16px;color:var(--gray)}
+.time{font-size:52px;font-weight:800;text-align:center;margin:6px 0;letter-spacing:.02em}
+input[type=text],input[type=number],input[type=date],input[type=time],input[type=tel],textarea,select{width:100%;font-size:19px;padding:13px;border:2px solid var(--line);border-radius:14px;background:#fff;margin:4px 0 10px;font-family:inherit}
+textarea{min-height:100px}
+.stepper{display:flex;align-items:center;justify-content:center;gap:16px;margin:10px 0}
+.stepper button{width:64px;height:64px;font-size:32px;border-radius:50%;border:none;background:#e5f0ff;color:var(--blue);font-weight:700}
+.stepper .n{font-size:44px;font-weight:800;min-width:70px;text-align:center}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+.thumbs img{width:96px;height:96px;object-fit:cover;border-radius:12px}
+.photoin{display:block;background:#fff;border:2px dashed #b9d7ff;border-radius:18px;padding:18px;text-align:center;color:var(--blue);font-weight:700;font-size:19px;margin:8px 0}
+.photoin input{display:none}
+.link{color:var(--blue);font-size:16px;font-weight:600}
+.toast{position:fixed;left:16px;right:16px;bottom:100px;background:rgba(30,30,30,.92);color:#fff;padding:14px 16px;border-radius:14px;font-size:16px;z-index:9;text-align:center}
+.tabs{display:flex;gap:2px;margin-bottom:12px;background:#e3e3e8;border-radius:12px;padding:3px}
+.tabs div{flex:1;text-align:center;padding:9px 4px;border-radius:10px;font-weight:600;font-size:15px;color:#333}
+.tabs div.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.sw{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);font-size:17px}
+.sw .tg{width:52px;height:32px;border-radius:16px;background:#e5e5ea;position:relative;flex:0 0 52px}
+.sw .tg.on{background:var(--green)}
+.sw .tg::after{content:"";position:absolute;top:2px;left:2px;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.15s}
+.sw .tg.on::after{left:22px}
+.line{padding:10px 0;border-bottom:1px solid var(--line);font-size:16px}
+.pre{white-space:pre-wrap}
+.small{font-size:14px;color:var(--gray)}
+.center{text-align:center}
+.ol{padding-left:22px;font-size:16px}
+/* ホーム */
+.status{display:flex;align-items:center;justify-content:space-between}
+.status .t{font-size:13px;color:var(--gray)}
+.status .v{font-size:32px;font-weight:800;letter-spacing:.02em}
+.pill{font-size:13px;font-weight:700;border-radius:20px;padding:5px 11px;background:#eee;color:#666}
+.pill.in{background:#e8f5e9;color:#2e7d32}.pill.out{background:#e5f0ff;color:var(--blue)}.pill.stop{background:#ffebee;color:#c62828}
+.main{display:flex;justify-content:space-between;align-items:center;background:var(--blue);color:#fff;border-radius:18px;padding:16px 16px 16px 20px;margin-bottom:12px;min-height:80px;box-shadow:0 4px 12px rgba(10,132,255,.3);cursor:pointer}
+.main .lb{font-size:26px;font-weight:800}
+.main .lb small{display:block;font-size:13px;font-weight:500;opacity:.85}
+.main.done{background:#fff;color:var(--gray);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.ms{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.22);border-radius:14px;padding:4px}
+.ms button{width:44px;height:44px;border:none;border-radius:11px;background:transparent;color:#fff;font-size:26px;font-weight:700}
+.ms b{font-size:24px;min-width:34px;text-align:center}.ms i{font-style:normal;font-size:14px;margin-right:4px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.tile{background:#fff;border-radius:18px;padding:14px;min-height:108px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;position:relative}
+.tile .ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff}
+.tile .l{font-size:17px;font-weight:700;margin-top:10px;line-height:1.3}
+.tile .s{font-size:12px;color:var(--gray)}
+.tile .bd{position:absolute;top:10px;right:10px;background:var(--red);color:#fff;font-size:12px;font-weight:700;border-radius:10px;padding:2px 8px}
+.tile.ok .s{color:#2e7d32;font-weight:600}
+#tabbar{position:fixed;left:0;right:0;bottom:0;background:rgba(249,249,251,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid #d8d8dc;display:flex;justify-content:space-around;padding:8px 0 calc(10px + env(safe-area-inset-bottom));z-index:5}
+#tabbar div{flex:1;text-align:center;font-size:11px;color:#8e8e93;cursor:pointer}
+#tabbar div.on{color:var(--blue)}
+#tabbar span{display:block;font-size:24px;line-height:1.2}
+.menu .btn{text-align:left;padding-left:20px}
+.tile .ic{color:#fff}.tile .ic svg{width:25px;height:25px}
+.tile{min-height:132px;padding:16px}.tile .l{font-size:19px;margin-top:14px}.tile .s{font-size:13px}
+#tabbar span svg{width:27px;height:27px;display:inline-block}
+#tabbar div{font-size:11px;font-weight:600}
+.status .v{font-size:36px}
+.main{min-height:92px}.main .lb{font-size:28px}
+#hdr{padding:calc(14px + env(safe-area-inset-top)) 20px 8px}#hdr .site{font-size:32px;line-height:1.2}
+</style>
+</head>
+<body>
+<div id="hdr"><div class="site">ツジモト現場</div><div class="who">読み込み中…</div></div>
+<div id="top"></div>
+<div id="main"></div>
+<div id="tabbar" style="display:none"></div>
+<script>
+const QS = new URLSearchParams(location.search);
+const INIT = { siteId: QS.get('g') || '', admin: QS.get('m') === '1' };
+const LS = { get: k => { try { return localStorage.getItem('tg.' + k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem('tg.' + k) : localStorage.setItem('tg.' + k, v); } catch (e) {} } };
+const S = { siteId: '', site: null, company: '', foreman: '', ninzu: 1, qrNone: false, boot: null, rec: null };
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const SV = (d, w = 2) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+const ICON = {
+  ky: SV('<path d="M12 3.5 2.5 20h19L12 3.5z"/><path d="M12 10v4.5"/><path d="M12 17.3v.2"/>'),
+  cam: SV('<rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8.5 7 10 4.5h4L15.5 7"/><circle cx="12" cy="13.5" r="3.5"/>'),
+  pen: SV('<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/>'),
+  umb: SV('<path d="M3 12a9 9 0 0 1 18 0H3z"/><path d="M12 12v6a2 2 0 0 0 4 0"/>'),
+  bolt: SV('<path d="M13 2.5 4.5 14H11l-1 7.5 8.5-11.5H12l1-7.5z"/>'),
+  home: SV('<path d="M3.5 11 12 3.5l8.5 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/>'),
+  newp: SV('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20.5c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/><path d="M19 7.5v6M16 10.5h6"/>'),
+  info: SV('<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.6v.2"/>'),
+  menu: SV('<path d="M4 6.5h16M4 12h16M4 17.5h16"/>'),
+};const API = 'https://script.google.com/macros/s/AKfycbxw9HRdNQgnnfJtcRHcSZSB4NMxP3oDCzyrlcHrIAdojaAni7ELnkq-0YaDy6XUWcqY/exec';
+async function call(fn, ...args) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn, args }) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j.result;
+}
+function toast(t, ms = 2500) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), ms); }
+function busy(on, t) { let b = $('#busy'); if (!on) { b && b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'busy'; b.className = 'toast'; document.body.appendChild(b); } b.textContent = t || '送っています…'; }
+function render(html, where = '#main') { if (where === '#main' && !render.keepTop) $('#top').innerHTML = ''; $(where).innerHTML = html; window.scrollTo(0, 0); }
+function jpDate(iso) { const d = new Date(iso + 'T00:00:00'); return (d.getMonth() + 1) + '/' + d.getDate() + '（' + '日月火水木金土'[d.getDay()] + '）'; }
+function chips(name, list, opts = {}) { // opts: {multi, sub, value}
+  const sel = new Set([].concat(opts.value || []));
+  return '<div class="chips" data-chips="' + esc(name) + '" data-multi="' + (opts.multi ? 1 : 0) + '" data-max="' + (opts.max || 0) + '">' + list.map(v => '<div class="chip' + (opts.sub ? ' sub' : '') + (sel.has(v) ? ' on' : '') + '" data-v="' + esc(v) + '">' + esc(v) + '</div>').join('') + '</div>';
+}
+function chipVal(name) { const box = $('[data-chips="' + name + '"]'); if (!box) return []; return $$('[data-chips="' + name + '"] .chip.on').map(c => c.dataset.v); }
+document.addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  const box = c.parentElement, multi = box.dataset.multi === '1', max = +box.dataset.max;
+  if (!multi) { box.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c && !c.classList.contains('on'))); }
+  else { if (!c.classList.contains('on') && max && box.querySelectorAll('.chip.on').length >= max) { toast(max + 'つまでです'); return; } c.classList.toggle('on'); }
+  box.dispatchEvent(new CustomEvent('chipchange', { bubbles: true }));
+});
+function stepper(id, v, min = 1) { return '<div class="stepper" id="' + id + '"><button data-d="-1">−</button><div class="n">' + v + '</div><button data-d="1">＋</button></div>'; }
+document.addEventListener('click', e => { const b = e.target.closest('.stepper button'); if (!b) return; const n = b.parentElement.querySelector('.n'); n.textContent = Math.max(0, +n.textContent + +b.dataset.d); });
+function stepVal(id) { return +$('#' + id + ' .n').textContent; }
+function shrink(file, max = 1280, q = 0.72) {
+  return new Promise(res => { const url = URL.createObjectURL(file); const img = new Image(); img.onload = () => { let w = img.naturalWidth, h = img.naturalHeight; const r = Math.min(1, max / Math.max(w, h)); w = Math.round(w * r); h = Math.round(h * r); const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', q)); }; img.src = url; });
+}
+let PHOTOS = [];
+function photoBox(max = 3) { PHOTOS = []; return '<label class="photoin">📷 写真を撮る・選ぶ（' + max + '枚まで）<input type="file" accept="image/*" capture="environment" id="photoIn" data-max="' + max + '"></label><div class="thumbs" id="thumbs"></div>'; }
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'photoIn' || !e.target.files[0]) return;
+  if (PHOTOS.length >= +e.target.dataset.max) { toast('これ以上は付けられません'); return; }
+  busy(true, '写真を小さくしています…'); PHOTOS.push(await shrink(e.target.files[0])); busy(false); e.target.value = '';
+  $('#thumbs').innerHTML = PHOTOS.map((p, i) => '<img src="' + p + '" data-i="' + i + '" title="押すと消す">').join('');
+});
+document.addEventListener('click', e => { const im = e.target.closest('#thumbs img'); if (!im) return; if (confirm('この写真を消しますか')) { PHOTOS.splice(+im.dataset.i, 1); im.remove(); } });
+function recent(what) { try { const l = JSON.parse(LS.get('last') || '{}'); return l.what === what && Date.now() - l.ts < 5 * 60000; } catch (e) { return false; } }
+function P() { return { siteId: S.siteId, siteName: S.site ? S.site.name : '', company: S.company, foreman: S.foreman }; }
+
+// ---------- 起動 ----------
+async function start() {
+  if (INIT.admin) return adminStart();
+  if (INIT.siteId) { S.siteId = INIT.siteId; S.qrNone = false; LS.set('site', S.siteId); }
+  else { S.siteId = LS.get('site') || ''; S.qrNone = true; }
+  S.company = LS.get('company') || ''; S.foreman = LS.get('foreman') || ''; S.ninzu = +(LS.get('ninzu') || 1);
+  await reboot();
+}
+async function reboot() {
+  busy(true, '読み込み中…');
+  try { S.boot = await call('getBoot', S.siteId, S.company, S.foreman); } catch (e) { busy(false); render('<div class="card">読み込めませんでした。電波の良い所でもう一度開いてください。<br><span class="small">' + esc(e.message || e) + '</span></div>'); return; }
+  busy(false);
+  S.site = S.boot.site; S.rec = S.boot.rec || null;
+  header();
+  if (!S.site) return viewSitePick();
+  if (!S.company || !S.foreman) return viewWho();
+  viewHome();
+}
+function header() {
+  $('#hdr .site').textContent = S.site ? S.site.name : 'ツジモト現場';
+  $('#hdr .who').innerHTML = (S.boot ? jpDate(S.boot.today) : '') + (S.company ? '　' + esc(S.company) + '・' + esc(S.foreman) + 'さん' : '');
+}
+function tabbar(on) {
+  const f = S.site ? S.site.features : {}, tb = $('#tabbar');
+  if (!S.site || !S.company) { tb.style.display = 'none'; return; }
+  const items = [['home', ICON.home, 'ホーム']];
+  if (f['新規入場']) items.push(['shinki', ICON.newp, '新規入場']);
+  if (f['案内']) items.push(['annai', ICON.info, '現場の案内']);
+  items.push(['menu', ICON.menu, 'その他']);
+  tb.innerHTML = items.map(x => '<div data-k="' + x[0] + '" class="' + (x[0] === on ? 'on' : '') + '"><span>' + x[1] + '</span>' + x[2] + '</div>').join('');
+  tb.style.display = 'flex';
+  $$('#tabbar div').forEach(d => d.onclick = () => ({ home: viewHome, shinki: viewShinki, annai: viewAnnai, menu: viewMenu })[d.dataset.k]());
+}
+function viewMenu() {
+  $('#top').innerHTML = ''; tabbar('menu');
+  render('<h2>その他</h2><div class="menu"><button class="btn gray" id="mWho">👷 職長・会社を変える<small>今：' + esc(S.company) + '・' + esc(S.foreman) + 'さん</small></button><button class="btn gray" id="mSite">🏠 現場を変える<small>今：' + esc(S.site.name) + '</small></button><button class="btn gray" id="mAdmin">🔑 中井の画面</button></div>');
+  $('#mWho').onclick = () => { $('#tabbar').style.display = 'none'; viewWho(); };
+  $('#mSite').onclick = () => { $('#tabbar').style.display = 'none'; viewSitePick(); };
+  $('#mAdmin').onclick = () => { $('#tabbar').style.display = 'none'; adminStart(); };
+}
+function viewSitePick() {
+  render('<h2>どの現場ですか</h2><div class="small">現場のQRコードを読むと、この画面は出ません。</div>' + S.boot.sites.map(s => '<button class="btn gray" data-id="' + esc(s.id) + '">' + esc(s.name) + '</button>').join('') + (S.boot.sites.length ? '' : '<div class="card">使える現場がまだありません。中井に連絡してください。</div>'));
+  $$('#main .btn').forEach(b => b.onclick = () => { S.siteId = b.dataset.id; S.qrNone = true; LS.set('site', S.siteId); reboot(); });
+}
+function viewWho() {
+  const cs = S.boot.companies;
+  $('#top').innerHTML = '';
+  render('<h2>会社を選んでください</h2>' + chips('co', cs.map(c => c.name)) + '<div id="fore"></div>');
+  $('[data-chips="co"]').addEventListener('chipchange', () => {
+    const c = cs.find(x => x.name === chipVal('co')[0]); if (!c) { $('#fore').innerHTML = ''; return; }
+    $('#fore').innerHTML = '<h2>職長は誰ですか</h2>' + chips('fm', c.foremen) + '<input type="text" id="fmOther" placeholder="名前が無い時はここに書く"><button class="btn big" id="fmOk">この名前で進む</button>';
+    $('#fmOk').onclick = () => { const n = ($('#fmOther').value.trim() || chipVal('fm')[0] || ''); if (!n) { toast('名前を選んでください'); return; } S.company = c.name; S.foreman = n; LS.set('company', S.company); LS.set('foreman', S.foreman); reboot(); };
+    $('#fore').scrollIntoView({ behavior: 'smooth' });
+  });
+}
+// ---------- ホーム ----------
+function tile(id, color, icon, label, sub, extra = '') { return '<div class="tile' + extra + '" id="' + id + '"><div class="ic" style="background:' + color + '">' + icon + '</div><div class="l">' + label + '</div><div class="s">' + sub + '</div></div>'; }
+function viewHome() {
+  const b = S.boot, f = S.site.features, r = S.rec || {};
+  tabbar('home');
+  let top = '';
+  b.notices.forEach(n => top += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）</b>' + esc(n.text) + '</div>');
+  if (b.yesterdayOpen) top += '<div class="card note"><b>昨日の「出ました」が押されていません</b>昨日（' + esc(b.yesterdayOpen.in) + '入場）は何時に出ましたか<input type="time" id="yOut" value="17:00"><button class="btn" id="yOk">この時間で記録</button></div>';
+  if (S.site.rain && r['入場'] && !r['明日']) top += '<div class="card note"><b>☂ 明日は雨の予報です</b>明日はどうしますか<div class="row"><button class="btn" data-a="来る">来る</button><button class="btn red" data-a="来ない">来ない</button></div></div>';
+  (b.replies || []).forEach(k => top += '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">💬 中井の返事（' + esc(k.when.slice(5)) + '）' + esc(k.basho ? '・' + k.basho : '') + '</b><span class="small">' + esc(k.text) + '</span><br>' + esc(k.reply) + '</div>');
+  render(top, '#top');
+  if ($('#yOk')) $('#yOk').onclick = async () => { busy(true); await call('taijo', Object.assign(P(), { date: b.yesterdayOpen.date, time: $('#yOut').value })); busy(false); toast('昨日の退場を記録しました'); reboot(); };
+  $$('#top [data-a]').forEach(x => x.onclick = async () => { busy(true); S.rec = await call('ashitaOnly', Object.assign(P(), { ashita: x.dataset.a })); busy(false); toast('明日：' + x.dataset.a + ' を記録しました'); viewHome(); });
+
+  // 今日の状態
+  let pill = '<span class="pill">まだ</span>';
+  if (r['中止']) pill = '<span class="pill stop">' + esc(r['中止']) + '中止</span>';
+  else if (r['退場']) pill = '<span class="pill out">退場済</span>';
+  else if (r['入場']) pill = '<span class="pill in">作業中</span>';
+  const canIn = r['入場'] && recent('入場') && !r['退場'], canOut = r['退場'] && recent('退場');
+  let h = '<div class="card status"><div><div class="t">入場' + (r['人数'] ? '・' + esc(r['人数']) + '名' : '') + '</div><div class="v">' + esc(r['入場'] || '—:—') + '</div></div><div><div class="t">退場</div><div class="v">' + esc(r['退場'] || '—:—') + '</div></div>' + pill + '</div>';
+  if (canIn || canOut) h += '<div class="center" style="margin:-4px 0 10px"><span class="link" id="bUndo">押し間違い？（' + (canOut ? '退場' : '入場') + 'を取り消す）</span></div>';
+  // 大きいボタン＝次にやること
+  if (!r['入場']) h += '<div class="main" id="bMain"><div class="lb">入りました<small>押すと今の時刻で記録</small></div><div class="ms" id="ms"><button data-d="-1">−</button><b id="msN">' + (S.ninzu || 1) + '</b><i>名</i><button data-d="1">＋</button></div></div>';
+  else if (!r['退場']) h += '<div class="main" id="bMain"><div class="lb">出ました<small>進み・明日の予定は飛ばしてもOK</small></div><div style="font-size:30px">›</div></div>';
+  else h += '<div class="main done"><div class="lb" style="font-size:20px">お疲れ様でした</div></div>';
+  // タイル
+  let g = '';
+  if (f.KY) g += tile('bKY', 'var(--orange)', ICON.ky, 'KY', r['作業内容'] ? '✓ ' + esc(r['作業内容']) : '作業の前に', r['作業内容'] ? ' ok' : '');
+  if (f['確認']) g += tile('bKk', 'var(--green)', ICON.cam, 'ここどうしますか', '写真で中井へ').replace('</div></div>', '</div>' + (b.pending ? '<span class="bd">返事待ち' + b.pending + '</span>' : '') + '</div>');
+  if (f['頼み事']) g += tile('bTn', 'var(--purple)', ICON.pen, '頼み事', '中井へ');
+  g += tile('bCh', 'var(--red)', ICON.umb, '中止', r['中止'] ? '✓ ' + esc(r['中止']) + '（' + esc(r['中止の理由']) + '）' : '雨・風など');
+  if (f['ヒヤリハット']) g += tile('bHy', '#ffcc00', ICON.bolt, 'ヒヤリハット', 'ケガ・危なかった事');
+  h += '<div class="grid">' + g + '</div>';
+  if (!r['入場'] && !r['退場']) h += '<button class="btn gray" id="bOut">出ました<small>「入りました」を押し忘れた時</small></button>';
+  render.keepTop = true; render(h); render.keepTop = false;
+  if ($('#ms')) $$('#ms button').forEach(x => x.onclick = e => { e.stopPropagation(); const n = $('#msN'); n.textContent = Math.max(1, +n.textContent + +x.dataset.d); });
+  if ($('#bMain')) $('#bMain').onclick = () => !r['入場'] ? nyujoNow(+$('#msN').textContent) : viewTaijo();
+  if ($('#bUndo')) $('#bUndo').onclick = () => cancel(canOut ? '退場' : '入場');
+  if ($('#bKY')) $('#bKY').onclick = viewKY;
+  if ($('#bKk')) $('#bKk').onclick = viewKakunin;
+  $('#bCh').onclick = viewChushi;
+  if ($('#bOut')) $('#bOut').onclick = () => confirm('まだ「入りました」を押していません。退場だけ記録しますか') ? viewTaijo() : null;
+  if ($('#bTn')) $('#bTn').onclick = () => viewRenraku('頼み事');
+  if ($('#bHy')) $('#bHy').onclick = () => viewRenraku('ヒヤリハット');
+}
+async function cancel(what) {
+  if (!confirm(what + 'を取り消しますか（押し間違いの時だけ）')) return;
+  busy(true); S.rec = await call('torikeshi', Object.assign(P(), { what })); busy(false); LS.set('last', null); toast(what + 'を取り消しました'); viewHome();
+}
+function done(title, time, extra = '') {
+  $('#top').innerHTML = '';
+  render('<div class="card center" style="padding:28px 16px"><div style="font-size:54px;color:var(--green)">✓</div><h2 style="margin:0">' + esc(title) + '</h2><div class="time">' + esc(time) + '</div></div>' + extra + '<button class="btn gray" id="bBack">ホームへ戻る</button>');
+  $('#bBack').onclick = reboot;
+}
+// ---------- 入場（ホームのボタン1回で記録） ----------
+async function nyujoNow(n) {
+  busy(true, '記録しています…');
+  try { S.rec = await call('nyujo', Object.assign(P(), { ninzu: n, qrNone: S.qrNone })); } catch (e) { busy(false); toast('送れませんでした。電波を確かめてもう一度：' + e.message, 5000); return; }
+  busy(false); S.ninzu = n; LS.set('ninzu', n); LS.set('last', JSON.stringify({ what: '入場', ts: Date.now() }));
+  done('入りました（' + n + '名）', S.rec['入場'], S.site.features.KY && !S.rec['作業内容'] ? '<button class="btn big" id="bKY2">続けて KY を入れる</button>' : '');
+  if ($('#bKY2')) $('#bKY2').onclick = viewKY;
+}// ---------- KY ----------
+function viewKY() {
+  const ch = S.site.choices || {}, kouteiMap = ch['工程'] || {}, kinds = Object.keys(kouteiMap);
+  const r = S.rec || {};
+  let h = '<h2>① 今日の作業内容</h2><h3>場所</h3>' + chips('basho', ch['場所'] || [], { multi: true });
+  kinds.forEach(k => h += '<h3>' + esc(k) + 'の工程</h3>' + chips('kt_' + k, kouteiMap[k], { multi: true }));
+  h += '<button class="btn" id="next1">次へ（危険のポイント）</button><button class="btn gray" id="bBack">戻る</button>';
+  render(h); $('#bBack').onclick = viewHome;
+  $('#next1').onclick = () => {
+    const basho = chipVal('basho'), koutei = [], keys = [];
+    kinds.forEach(k => chipVal('kt_' + k).forEach(v => { koutei.push(v); keys.push(k + '/' + v); }));
+    if (!koutei.length) { toast('工程を1つは選んでください'); return; }
+    const items = []; const seen = new Set();
+    keys.forEach(k => (S.boot.ky[k] || []).forEach(x => { if (!seen.has(x.kiken)) { seen.add(x.kiken); items.push(x); } }));
+    (S.boot.ky['共通'] || []).forEach(x => { if (!seen.has(x.kiken)) { seen.add(x.kiken); items.push(x); } });
+    let h2 = '<h2>② 危険のポイント（3つまで）</h2><div class="small">押すと「私達はこうします」が決まります</div><div class="chips" data-chips="kk" data-multi="1" data-max="3">' + items.map((x, i) => '<div class="chip sub" data-v="' + i + '">' + esc(x.kiken) + '<br><span style="font-size:14px;color:#2a9d8f">→ ' + esc(x.kou) + '</span></div>').join('') + '</div>';
+    h2 += '<h2>③ 本日の安全目標（1つ）</h2>' + chips('mk', S.boot.goals) + '<button class="btn ok big" id="send">KYを送る</button><button class="btn gray" id="bBack2">戻る</button>';
+    render(h2); $('#bBack2').onclick = viewKY;
+    $('#send').onclick = async () => {
+      const kk = chipVal('kk').map(i => items[+i]), mk = chipVal('mk')[0] || '';
+      if (!kk.length) { toast('危険のポイントを1つは選んでください'); return; }
+      busy(true); try { S.rec = await call('ky', Object.assign(P(), { basho, koutei, kiken: kk, mokuhyou: mk })); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
+      busy(false); done('KYを記録しました', S.boot.now, '<div class="card"><b>作業内容</b><br>' + esc(S.rec['作業内容']) + '<br><b>安全目標</b><br>' + esc(mk) + '</div>');
+    };
+  };
+}
+// ---------- 退場 ----------
+function viewTaijo() {
+  const ch = S.site.choices || {}, kouteiMap = ch['工程'] || {}, kinds = Object.keys(kouteiMap), f = S.site.features;
+  const allK = []; kinds.forEach(k => kouteiMap[k].forEach(v => allK.push(v)));
+  const doko = ch['どこまで'] || ['完了', '半分くらい', '少し', '続き'];
+  const block = i => '<div class="card"><h3>進み ' + i + (i === 2 ? '（あれば）' : '') + '</h3>場所' + chips('s' + i + 'b', ch['場所'] || [], { sub: true }) + '工程' + chips('s' + i + 'k', allK, { sub: true }) + 'どこまで' + chips('s' + i + 'd', doko, { sub: true }) + '</div>';
+  let h = '<h2>本日の進み（一番時間をかけた仕事に ○2つまで）</h2>' + block(1) + block(2);
+  if (f['明日']) h += '<div class="card"><h3>明日は</h3>' + chips('as', ['来る', '来ない']) + '人数' + stepper('an', S.ninzu || 1) + '</div>';
+  if (f['片付け']) h += '<div class="card"><h3>帰る前に</h3>' + chips('kz', ['片付けた', '戸締りした', '火の元よし'], { multi: true }) + '</div>';
+  h += '<button class="btn big ok" id="go">出ました（記録して送る）</button><div class="small center">進みなどが分からない時は、何も選ばず「出ました」で大丈夫です</div><button class="btn gray" id="bBack">戻る</button>';
+  render(h); $('#bBack').onclick = viewHome;
+  $('#go').onclick = async () => {
+    const susumi = [1, 2].map(i => ({ basho: chipVal('s' + i + 'b')[0] || '', koutei: chipVal('s' + i + 'k')[0] || '', dokomade: chipVal('s' + i + 'd')[0] || '' })).filter(s => s.koutei || s.basho);
+    const p = Object.assign(P(), { susumi, ashita: f['明日'] ? (chipVal('as')[0] || '') : '', ashitaNinzu: f['明日'] && $('#an') ? stepVal('an') : '', katazuke: f['片付け'] ? chipVal('kz').join('・') : '' });
+    busy(true); try { S.rec = await call('taijo', p); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
+    busy(false); LS.set('last', JSON.stringify({ what: '退場', ts: Date.now() })); done('出ました お疲れ様でした', S.rec['退場']);
+  };
+}
+// ---------- 中止 ----------
+function viewChushi() {
+  render('<h2>中止</h2><h3>どのくらい</h3>' + chips('hn', ['終日', '半日']) + '<h3>理由</h3>' + chips('ry', ['雨', '風', 'その他']) + '<input type="text" id="memo" placeholder="ひとこと（なくてもよい）"><button class="btn red big" id="go">中止を中井に知らせる</button><button class="btn gray" id="bBack">戻る</button>');
+  $('#bBack').onclick = viewHome;
+  $('#go').onclick = async () => {
+    const hani = chipVal('hn')[0], riyuu = chipVal('ry')[0]; if (!hani || !riyuu) { toast('どのくらい・理由を選んでください'); return; }
+    busy(true); try { S.rec = await call('chushi', Object.assign(P(), { hani, riyuu, memo: $('#memo').value.trim() })); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
+    busy(false); done('中止を知らせました', hani + '中止（' + riyuu + '）');
+  };
+}
+// ---------- ここどうしますか ----------
+function viewKakunin() {
+  const ch = S.site.choices || {};
+  render('<h2>📷 ここどうしますか</h2><h3>場所</h3>' + chips('bs', ch['場所'] || [], { sub: true }) + photoBox(3) + '<h3>聞きたいこと</h3><textarea id="tx" placeholder="声で入れる時はキーボードのマイクを押してください"></textarea><button class="btn big ok" id="go">中井に送る</button><button class="btn gray" id="bBack">戻る</button>');
+  $('#bBack').onclick = viewHome;
+  $('#go').onclick = async () => {
+    if (!PHOTOS.length && !$('#tx').value.trim()) { toast('写真か文を入れてください'); return; }
+    busy(true, '写真を送っています…'); try { await call('kakunin', Object.assign(P(), { basho: chipVal('bs')[0] || '', text: $('#tx').value.trim(), photos: PHOTOS })); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
+    busy(false); done('中井に送りました', '返事はこの画面の上に出ます', '');
+  };
+}
+// ---------- 頼み事・ヒヤリハット ----------
+function viewRenraku(shurui) {
+  const hy = shurui === 'ヒヤリハット';
+  render('<h2>' + (hy ? '⚡ ヒヤリハット' : '📝 中井に頼み事') + '</h2>' + (hy ? '<div class="card note"><b>ケガをした時は、まず電話</b><a class="btn red" style="text-decoration:none" href="tel:' + esc(S.boot.phone) + '">📞 中井に電話 ' + esc(S.boot.phone) + '</a>' + chips('kg', ['ケガあり', 'ケガなし']) + '</div>' : '') + '<textarea id="tx" placeholder="' + (hy ? '何があったか（声でも）' : '明日○○を持ってきて、など（声でも）') + '"></textarea>' + photoBox(1) + '<button class="btn big ok" id="go">送る</button><button class="btn gray" id="bBack">戻る</button>');
+  $('#bBack').onclick = viewHome;
+  $('#go').onclick = async () => {
+    const tx = $('#tx').value.trim(); if (!tx && !PHOTOS.length) { toast('文か写真を入れてください'); return; }
+    busy(true); try { await call('renraku', Object.assign(P(), { shurui, text: tx, photos: PHOTOS, kega: hy && chipVal('kg')[0] === 'ケガあり' })); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
+    busy(false); done('送りました', hy ? 'ヒヤリハット' : '頼み事');
+  };
+}
+// ---------- 現場の案内 ----------
+function viewAnnai() {
+  render('<h2>ℹ 現場の案内</h2><div class="card pre">' + esc(S.site.annai || '（まだ書かれていません）') + '</div><a class="btn" style="text-decoration:none" href="tel:' + esc(S.boot.phone) + '">📞 中井に電話</a><button class="btn gray" id="bBack">戻る</button>');
+  $('#bBack').onclick = viewHome;
+}
+// ---------- 新規入場 ----------
+const SEIYAKU = ['朝礼には必ず出席し、安全作業や注意事項を厳守します。', '保護帽・保護具を着用し、高所作業は必ず安全帯（フルハーネス）を使用します。', '機械・設備・有資格等の始業前点検、作業手順書による作業の遵守、KY活動等の安全衛生活動に積極的に参加します。', '作業中にケガ又は身体の具合が悪くなった時は、必ず職長を通じて事務所へ届け出ます。', '作業に支障となる保安設備（手摺・ネット・防護柵等）は、事前に職長を通じて事務所に報告し、勝手に変更（外す）しません。', '万一、ケガをした場合直ちに作業所職員に報告します。', '持場の整理整頓に心掛け、作業終了時には必ず清掃します。', '喫煙は指定場所を使用し、くわえ煙草は絶対にしません。', '資機材の荷降ろし場所は、作業所職員等の指示に従います。', '材料ロスを出さない作業を工夫し、ゴミの減量化に努めます。', '廃棄物、危険・有害物（スプレー缶・シンナー他）は、決められた方法で指定場所へ分別し、一般ゴミは必ず持ち帰ります。', '作業所のISO「品質向上」「環境保全」活動推進に合致又は配慮した作業を遵守します。'];
+function viewShinki() {
+  render('<h2>🆕 新規入場（本人が入れてください）</h2><div class="small">血圧・病気・健康診断は紙に書きます</div><div class="card">氏名<input type="text" id="nm" placeholder="例：大畑 陽">ふりがな<input type="text" id="kn" placeholder="おおはた よう">生年月日<input type="date" id="bd"><button class="btn gray" id="chk">前に入れたことがあるか調べる</button></div><div id="form"></div><button class="btn gray" id="bBack">戻る</button>');
+  $('#bBack').onclick = viewHome;
+  $('#chk').onclick = async () => {
+    const nm = $('#nm').value.trim(), bd = $('#bd').value; if (!nm || !bd) { toast('氏名と生年月日を入れてください'); return; }
+    busy(true, '調べています…'); const old = await call('getShinki', nm, bd); busy(false);
+    shinkiForm(old);
+  };
+}
+function shinkiForm(old) {
+  const o = old || {}, v = k => o[k] || '', arr = k => (o[k] || '').split('、').filter(Boolean);
+  let h = old ? '<div class="card note"><b>前に入れた内容があります（' + esc(o['日時'].slice(0, 10)) + '）</b>変わりが無ければ、下の「変わりなし」を押すだけです。<button class="btn ok" id="same">変わりなし（このまま送る）</button></div>' : '';
+  h += '<div class="card">性別' + chips('sx', ['男', '女'], { value: v('性別') }) + '職種' + chips('sk', ['塗装工', '防水工', 'シーリング工', '足場工', 'その他'], { value: v('職種') }) + '経験年数<input type="number" id="kn2" value="' + esc(v('経験年数')) + '" placeholder="年">';
+  h += '緊急連絡先の続柄' + chips('zk', ['配偶者', '親', '子', 'その他'], { value: v('緊急連絡先_続柄') }) + '緊急連絡先の名前<input type="text" id="en" value="' + esc(v('緊急連絡先_名前')) + '">緊急連絡先の電話<input type="tel" id="et" value="' + esc(v('緊急連絡先_電話')) + '">雇用主（給料をもらう会社）<input type="text" id="ky" value="' + esc(v('雇用主') || S.company) + '"></div>';
+  h += '<div class="card">自営業・一人親方ですか' + chips('jj', ['はい', 'いいえ'], { value: v('自営業・一人親方') }) + '労災特別加入' + chips('rs', ['加入済', '未加入', '該当なし'], { value: v('労災特別加入') }) + '雇用通知書' + chips('kt', ['もらっている', 'いない'], { value: v('雇用通知書') }) + '建退共' + chips('kk', ['加入済', '未加入'], { value: v('建退共') }) + '</div>';
+  h += '<div class="card">免許' + chips('mn', ['移動式クレーン', '電気工事士', 'その他', 'なし'], { multi: true, sub: true, value: arr('免許') }) + '技能講習' + chips('gk', ['足場の組立て等', '有機溶剤', '石綿', 'その他', 'なし'], { multi: true, sub: true, value: arr('技能講習') }) + '特別教育' + chips('tk', ['フルハーネス', '高所作業車（10m未満）', '研削砥石', '丸のこ', '振動工具', '職長・安全衛生責任者', '石綿', 'その他', 'なし'], { multi: true, sub: true, value: arr('特別教育') }) + '</div>';
+  h += '<div class="card"><h3>入場時の誓約（読んでください）</h3><ol class="ol">' + SEIYAKU.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol>' + chips('sy', ['全部読んで、受けました']) + '</div><button class="btn big ok" id="send">新規入場を送る</button>';
+  $('#form').innerHTML = h;
+  const collect = same => ({ '氏名': $('#nm').value.trim(), 'ふりがな': $('#kn').value.trim(), '生年月日': $('#bd').value, '性別': chipVal('sx')[0] || '', '職種': chipVal('sk')[0] || '', '経験年数': $('#kn2').value, '緊急連絡先_続柄': chipVal('zk')[0] || '', '緊急連絡先_名前': $('#en').value.trim(), '緊急連絡先_電話': $('#et').value.trim(), '雇用主': $('#ky').value.trim(), '自営業・一人親方': chipVal('jj')[0] || '', '労災特別加入': chipVal('rs')[0] || '', '雇用通知書': chipVal('kt')[0] || '', '建退共': chipVal('kk')[0] || '', '免許': chipVal('mn'), '技能講習': chipVal('gk'), '特別教育': chipVal('tk'), '誓約': chipVal('sy')[0] ? '○' : '', '変わりなし': same ? '○' : '' });
+  const send = async same => {
+    const d = collect(same); if (!d['誓約']) { toast('誓約を読んで「受けました」を押してください'); $('[data-chips="sy"]').scrollIntoView(); return; }
+    if (!same && (!d['性別'] || !d['職種'] || !d['緊急連絡先_電話'])) { toast('性別・職種・緊急連絡先の電話は必ず入れてください'); return; }
+    busy(true); try { await call('shinki', Object.assign(P(), { data: d })); } catch (e) { busy(false); toast('送れませんでした：' + e.message); return; }
+    busy(false); done('新規入場を送りました', d['氏名'] + ' さん');
+  };
+  if ($('#same')) $('#same').onclick = () => send(true);
+  $('#send').onclick = () => send(false);
+}
+// ---------- 中井の画面 ----------
+let A = { pin: LS.get('pin') || '', data: null, tab: '今日' };
+async function adminStart() {
+  $('#tabbar').style.display = 'none';
+  if (!A.pin) { render('<h2>中井の画面</h2><input type="tel" id="pin" placeholder="暗証番号"><button class="btn" id="go">開く</button><button class="btn gray" id="bBack">戻る</button>', '#main'); $('#top').innerHTML = ''; $('#bBack').onclick = () => INIT.admin ? null : reboot(); $('#go').onclick = () => { A.pin = $('#pin').value.trim(); adminStart(); }; return; }
+  busy(true, '読み込み中…');
+  try { A.data = await call('adminToday', A.pin); } catch (e) { busy(false); A.pin = ''; LS.set('pin', null); toast(e.message || '開けませんでした'); return adminStart(); }
+  busy(false); LS.set('pin', A.pin);
+  $('#hdr .site').textContent = '中井の画面'; $('#hdr .who').innerHTML = jpDate(A.data.today) + '　' + esc(A.data.now) + (INIT.admin ? '' : '　<span id="toHome">職長の画面へ</span>');
+  if ($('#toHome')) $('#toHome').onclick = reboot;
+  $('#top').innerHTML = '';
+  adminTab(A.tab);
+}
+function adminTab(tab) {
+  A.tab = tab; const d = A.data;
+  let h = '<div class="tabs">' + ['今日', '返事', '切替', '自分'].map(t => '<div data-t="' + t + '" class="' + (t === tab ? 'on' : '') + '">' + t + (t === '返事' && (d.pending.length + d.renraku.length) ? '（' + (d.pending.length + d.renraku.length) + '）' : '') + '</div>').join('') + '</div>';
+  if (tab === '今日') {
+    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => '<div class="line">' + esc(r.company) + ' ' + esc(r.foreman) + '　' + esc(r.ninzu) + '名　' + esc(r.in || '—') + '〜' + esc(r.out || '') + (r.chushi ? '　<b style="color:var(--red)">' + esc(r.chushi) + '中止（' + esc(r.riyuu) + '）</b>' : '') + (r.sagyou ? '<br><span class="small">KY：' + esc(r.sagyou) + '</span>' : '') + (r.ashita ? '<br><span class="small">明日：' + esc(r.ashita) + ' ' + esc(r.ashitaN) + '名</span>' : '') + '</div>').join('') : '<div class="small">まだ誰も押していません</div>') + '</div>'; });
+    h += '<button class="btn gray" id="reload">更新</button>';
+  }
+  if (tab === '返事') {
+    if (!d.pending.length && !d.renraku.length) h += '<div class="card">返事待ちはありません</div>';
+    d.pending.forEach(k => h += '<div class="card" data-k="' + esc(k.id) + '"><b>📷 ' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + (k.basho ? '　' + esc(k.basho) : '') + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div><textarea placeholder="返事（職長の画面に出ます）"></textarea><button class="btn ok" data-reply="' + esc(k.id) + '">返事を送る</button></div>');
+    d.renraku.forEach(k => h += '<div class="card"><b>' + (k.kega ? '🚨 ' : '') + esc(k.shurui) + '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div><button class="btn gray" data-done="' + esc(k.id) + '">済にする</button></div>');
+  }
+  if (tab === '切替') {
+    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + Object.keys(s.features).map(f => '<div class="sw"><span>' + esc(f === '確認' ? 'ここどうしますか' : f === '案内' ? '現場の案内' : f === '明日' ? '明日の予定' : f) + '</span><div class="tg ' + (s.features[f] ? 'on' : '') + '" data-site="' + esc(s.id) + '" data-f="' + esc(f) + '"></div></div>').join('') + '<h3>現場の案内（住所・駐車場・トイレ・鍵・近くの病院など）</h3><textarea data-annai="' + esc(s.id) + '">' + esc(s.annai) + '</textarea><button class="btn gray" data-saveannai="' + esc(s.id) + '">案内を保存</button><h3>この現場への一斉連絡（開いた時に一番上に出る）</h3>' + d.notices.filter(n => n.siteId === s.id).map(n => '<div class="small">今：' + esc(n.text) + '</div>').join('') + '<textarea data-notice="' + esc(s.id) + '" placeholder="空で送ると消えます"></textarea><button class="btn" data-sendnotice="' + esc(s.id) + '">連絡を出す</button></div>'; });
+    h += '<div class="card"><h2>全部の現場へ一斉連絡</h2>' + d.notices.filter(n => !n.siteId).map(n => '<div class="small">今：' + esc(n.text) + '</div>').join('') + '<textarea data-notice="" placeholder="空で送ると消えます"></textarea><button class="btn" data-sendnotice="">連絡を出す</button></div>';
+  }
+  if (tab === '自分') {
+    h += '<div class="card">' + (d.open ? '<div class="note card"><b>今</b>' + esc(d.open['種類']) + ' ' + esc(d.open['現場名']) + ' ' + esc(d.open['何をした']) + '　' + esc(d.open['入']) + '〜</div><button class="btn red" id="myOut">出ました</button>' : '') + '<h3>どこ</h3>' + chips('ms', ['現場', '事務所', '現地調査', '移動']) + '<h3>現場（現場・現地調査の時）</h3>' + chips('mg', d.sites.map(s => s.name), { sub: true }) + '<input type="text" id="mgOther" placeholder="一覧に無い現場・場所"><h3>何をした</h3>' + chips('mn', ['施工管理', '打合せ', '検査', '買い出し', '書類', '見積', '移動', 'その他'], { sub: true }) + '<button class="btn ok" id="myIn">入りました（今から）</button></div>';
+    h += '<div class="card"><h3>今日の自分</h3>' + (d.my.length ? d.my.map(r => '<div class="line">' + esc(r['種類']) + ' ' + esc(r['現場名']) + ' ' + esc(r['何をした']) + '　' + esc(r['入']) + '〜' + esc(r['出']) + '</div>').join('') : '<div class="small">まだありません</div>') + '</div>';
+  }
+  render(h);
+  $$('.tabs div').forEach(t => t.onclick = () => adminTab(t.dataset.t));
+  if ($('#reload')) $('#reload').onclick = adminStart;
+  $$('img[data-p]').forEach(async im => { try { im.src = await call('adminPhoto', A.pin, im.dataset.p); im.onclick = () => window.open(im.src); } catch (e) { im.alt = '×'; } });
+  $$('[data-reply]').forEach(b => b.onclick = async () => { const tx = b.parentElement.querySelector('textarea').value.trim(); if (!tx) { toast('返事を書いてください'); return; } busy(true); await call('adminReply', A.pin, b.dataset.reply, tx); busy(false); toast('返事を送りました'); adminStart(); });
+  $$('[data-done]').forEach(b => b.onclick = async () => { busy(true); await call('adminRenrakuDone', A.pin, b.dataset.done); busy(false); adminStart(); });
+  $$('.tg').forEach(t => t.onclick = async () => { const on = !t.classList.contains('on'); t.classList.toggle('on', on); try { await call('adminSwitch', A.pin, t.dataset.site, t.dataset.f, on); } catch (e) { toast(e.message); t.classList.toggle('on', !on); } });
+  $$('[data-saveannai]').forEach(b => b.onclick = async () => { busy(true); await call('adminAnnai', A.pin, b.dataset.saveannai, $('[data-annai="' + b.dataset.saveannai + '"]').value); busy(false); toast('保存しました'); });
+  $$('[data-sendnotice]').forEach(b => b.onclick = async () => { busy(true); await call('adminNotice', A.pin, b.dataset.sendnotice, $('[data-notice="' + b.dataset.sendnotice + '"]').value.trim()); busy(false); toast('連絡を出しました'); adminStart(); });
+  if ($('#myIn')) $('#myIn').onclick = async () => { const sh = chipVal('ms')[0]; if (!sh) { toast('どこかを選んでください'); return; } busy(true); await call('adminTime', A.pin, { inout: '入', shurui: sh, genba: $('#mgOther').value.trim() || chipVal('mg')[0] || '', nani: chipVal('mn')[0] || '' }); busy(false); adminStart(); };
+  if ($('#myOut')) $('#myOut').onclick = async () => { busy(true); await call('adminTime', A.pin, { inout: '出' }); busy(false); adminStart(); };
+}
+start();
+</script>
+</body>
+</html>
