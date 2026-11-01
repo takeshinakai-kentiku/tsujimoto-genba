@@ -91,6 +91,9 @@ textarea{min-height:100px}
 #tabbar div.on{color:var(--blue)}
 #tabbar span{display:block;font-size:24px;line-height:1.2}
 .menu .btn{text-align:left;padding-left:20px}
+.main.lock{background:#e5e5ea;color:#3a3a3c;box-shadow:none}
+.main.lock .lb small{opacity:1;color:#6b6b70}
+.main .qri{width:46px;height:46px;border-radius:14px;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center}.main .qri svg{width:26px;height:26px}
 .btn,.tile,.main,.chip,#tabbar div{transition:transform .08s,opacity .08s}
 .btn:active,.tile:active,.main:active,.chip:active,#tabbar div:active{transform:scale(.96);opacity:.8}
 #busy{position:fixed;inset:0;background:rgba(242,242,247,.55);z-index:20;display:flex;align-items:center;justify-content:center}
@@ -117,7 +120,8 @@ textarea{min-height:100px}
 <div id="tabbar" style="display:none"></div>
 <script>
 const QS = new URLSearchParams(location.search);
-const INIT = { siteId: QS.get('g') || '', admin: QS.get('m') === '1' };
+const INIT = { siteId: QS.get('g') || '', admin: QS.get('m') === '1', qr: QS.get('q') === '1' };
+if (QS.has('q')) { QS.delete('q'); history.replaceState(null, '', location.pathname + (QS.toString() ? '?' + QS.toString() : '')); }
 const LS = { get: k => { try { return localStorage.getItem('tg.' + k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem('tg.' + k) : localStorage.setItem('tg.' + k, v); } catch (e) {} } };
 const S = { siteId: '', site: null, company: '', foreman: '', ninzu: 1, qrNone: false, boot: null, rec: null };
 const $ = s => document.querySelector(s);
@@ -178,8 +182,8 @@ function P() { return { siteId: S.siteId, siteName: S.site ? S.site.name : '', c
 // ---------- 起動 ----------
 async function start() {
   if (INIT.admin) return adminStart();
-  if (INIT.siteId) { S.siteId = INIT.siteId; S.qrNone = false; LS.set('site', S.siteId); }
-  else { S.siteId = LS.get('site') || ''; S.qrNone = true; }
+  if (INIT.siteId) { S.siteId = INIT.siteId; LS.set('site', S.siteId); } else S.siteId = LS.get('site') || '';
+  S.qrNone = !INIT.qr;   // 現場のQR（印 q=1 付き）で開いた時だけ false
   S.company = LS.get('company') || ''; S.foreman = LS.get('foreman') || ''; S.ninzu = +(LS.get('ninzu') || 1);
   await reboot();
 }
@@ -288,7 +292,7 @@ function viewHome() {
   tabbar('home');
   let top = '';
   b.notices.forEach(n => top += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）</b>' + esc(n.text) + '</div>');
-  if (b.yesterdayOpen) top += '<div class="card note"><b>昨日の「出ました」が押されていません</b>昨日（' + esc(b.yesterdayOpen.in) + '入場）は何時に出ましたか<input type="time" id="yOut" value="17:00"><button class="btn" id="yOk">この時間で記録</button></div>';
+  if (b.yesterdayOpen) top += '<div class="card note"><b>昨日の「出ました」が押されていません</b>昨日（' + esc(b.yesterdayOpen.in) + '入場）は何時に出ましたか' + (S.qrNone && S.company !== 'ツジモト' ? '<br><span class="small">現場のQRを読んで開くと入れられます</span>' : '<input type="time" id="yOut" value="17:00"><button class="btn" id="yOk">この時間で記録</button>') + '</div>';
   if (S.site.rain && r['入場'] && !r['明日']) top += '<div class="card note"><b>☂ 明日は雨の予報です</b>明日はどうしますか<div class="row"><button class="btn" data-a="来る">来る</button><button class="btn red" data-a="来ない">来ない</button></div></div>';
   (b.replies || []).forEach(k => top += '<div class="card note" style="border-left-color:var(--green);background:#eefaf1"><b style="color:#2e7d32">💬 中井の返事（' + esc(k.when.slice(5)) + '）' + esc(k.basho ? '・' + k.basho : '') + '</b><span class="small">' + esc(k.text) + '</span><br>' + esc(k.reply) + '</div>');
   render(top, '#top');
@@ -304,7 +308,9 @@ function viewHome() {
   let h = '<div class="card status"><div><div class="t">入場' + (r['人数'] ? '・' + esc(r['人数']) + '名' : '') + '</div><div class="v">' + esc(r['入場'] || '—:—') + '</div></div><div><div class="t">退場</div><div class="v">' + esc(r['退場'] || '—:—') + '</div></div>' + pill + '</div>';
   if (canIn || canOut) h += '<div class="center" style="margin:-4px 0 10px"><span class="link" id="bUndo">押し間違い？（' + (canOut ? '退場' : '入場') + 'を取り消す）</span></div>';
   // 大きいボタン＝次にやること
-  if (!r['入場']) h += '<div class="main" id="bMain"><div class="lb">入りました<small>押すと今の時刻で記録</small></div><div class="ms" id="ms"><button data-d="-1">−</button><b id="msN">' + (S.ninzu || 1) + '</b><i>名</i><button data-d="1">＋</button></div></div>';
+  const noQR = S.qrNone && S.company !== 'ツジモト';
+  if (noQR && !(r['入場'] && r['退場'])) h += '<div class="main lock" id="bLock"><div class="lb">' + (r['入場'] ? '出ました' : '入りました') + '<small>現場に貼ってあるQRをカメラで読むと押せます</small></div><div class="qri">' + ICON.cam + '</div></div>';
+  else if (!r['入場']) h += '<div class="main" id="bMain"><div class="lb">入りました<small>押すと今の時刻で記録</small></div><div class="ms" id="ms"><button data-d="-1">−</button><b id="msN">' + (S.ninzu || 1) + '</b><i>名</i><button data-d="1">＋</button></div></div>';
   else if (!r['退場']) h += '<div class="main" id="bMain"><div class="lb">出ました<small>進み・明日の予定は飛ばしてもOK</small></div><div style="font-size:30px">›</div></div>';
   else h += '<div class="main done"><div class="lb" style="font-size:20px">お疲れ様でした</div></div>';
   // タイル
@@ -315,10 +321,11 @@ function viewHome() {
   g += tile('bCh', 'var(--red)', ICON.umb, '中止', r['中止'] ? '✓ ' + esc(r['中止']) + '（' + esc(r['中止の理由']) + '）' : '雨・風など');
   if (f['ヒヤリハット']) g += tile('bHy', '#ffcc00', ICON.bolt, 'ヒヤリハット', 'ケガ・危なかった事');
   h += '<div class="grid">' + g + '</div>';
-  if (!r['入場'] && !r['退場']) h += '<button class="btn gray" id="bOut">出ました<small>「入りました」を押し忘れた時</small></button>';
+  if (!noQR && !r['入場'] && !r['退場']) h += '<button class="btn gray" id="bOut">出ました<small>「入りました」を押し忘れた時</small></button>';
   h = '<div class="card note" id="qBanner" style="display:none"><b></b>件 まだ届いていません。電波が戻ると自動で送ります　<span class="link" onclick="flushOutbox()">今すぐ送る</span></div>' + h;
   render.keepTop = true; render(h); render.keepTop = false; sendState();
   if ($('#ms')) $$('#ms button').forEach(x => x.onclick = e => { e.stopPropagation(); const n = $('#msN'); n.textContent = Math.max(1, +n.textContent + +x.dataset.d); });
+  if ($('#bLock')) $('#bLock').onclick = () => toast('「入りました」「出ました」は、現場に貼ってあるQRをカメラで読んで開いた時だけ押せます。中止・ここどうしますか・頼み事はこのままで押せます', 6000);
   if ($('#bMain')) $('#bMain').onclick = () => !r['入場'] ? confirmNinzu(+$('#msN').textContent) : viewTaijo();
   if ($('#bUndo')) $('#bUndo').onclick = () => cancel(canOut ? '退場' : '入場');
   if ($('#bKY')) $('#bKY').onclick = viewKY;
