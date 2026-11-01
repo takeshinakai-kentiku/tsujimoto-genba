@@ -139,6 +139,11 @@ textarea{min-height:100px}
 const QS = new URLSearchParams(location.search);
 const INIT = { siteId: QS.get('g') || '', admin: QS.get('m') === '1', qr: QS.get('q') === '1' };
 if (QS.has('q')) { QS.delete('q'); history.replaceState(null, '', location.pathname + (QS.toString() ? '?' + QS.toString() : '')); }
+// 何かで止まった時に白紙のままにしない（11/1 中井様、再読み込みで白紙になった）
+function showStuck(msg) { const m = document.getElementById('main'); if (m && !m.innerHTML.trim()) m.innerHTML = '<div class="card"><b>うまく開けませんでした</b><div class="small">' + String(msg || '').replace(/</g, '&lt;') + '</div><button class="btn" onclick="location.reload()">もう一度開く</button></div>'; }
+window.addEventListener('error', e => showStuck(e.message));
+window.addEventListener('unhandledrejection', e => showStuck(e.reason && e.reason.message || e.reason));
+setTimeout(() => showStuck('電波が弱いか、読み込みに時間がかかっています'), 20000);
 const LS = { get: k => { try { return localStorage.getItem('tg.' + k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem('tg.' + k) : localStorage.setItem('tg.' + k, v); } catch (e) {} } };
 const S = { siteId: '', site: null, company: '', foreman: '', ninzu: 1, qrNone: false, boot: null, rec: null };
 const $ = s => document.querySelector(s);
