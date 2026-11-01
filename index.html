@@ -11,6 +11,14 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
+<script>
+if (new URLSearchParams(location.search).get('m') === '1') {
+  document.title = 'ツジモト管理';
+  document.querySelector('meta[name="apple-mobile-web-app-title"]').content = 'ツジモト管理';
+  document.querySelector('link[rel="apple-touch-icon"]').href = 'icon-admin-180.png';
+  const mf = document.querySelector('link[rel="manifest"]'); if (mf) mf.remove();
+}
+</script>
 <title>ツジモト現場</title>
 <style>
 :root{--blue:#0a84ff;--red:#ff3b30;--green:#34c759;--orange:#ff9500;--purple:#5856d6;--bg:#f2f2f7;--line:#e5e5ea;--txt:#111;--gray:#6b6b70}
