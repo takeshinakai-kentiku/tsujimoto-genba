@@ -29,6 +29,7 @@ body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,"H
 #hdr .who{font-size:15px;color:var(--gray);margin-top:2px}
 #hdr .who span{color:var(--blue);font-weight:600;margin-left:6px}
 #top,#main{padding:8px 16px 0}
+.topback{position:sticky;top:0;z-index:5;background:var(--bg);margin:-8px -16px 4px;padding:10px 16px;font-size:19px;font-weight:700;color:var(--blue);cursor:pointer}
 .card{background:#fff;border:none;border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .note{background:#fff8e1;border-left:5px solid #ffb300;font-size:17px}
 .note b{display:block;font-size:14px;margin-bottom:2px;color:#8a6d00}
@@ -246,7 +247,10 @@ function toast(t, ms = 3500) {   // ms=0 は押すまで消えない（大事な
 }
 function isNakai() { return !!LS.get('pin'); }   // 中井の画面の暗証番号が入っている携帯
 function busy(on, t) { let b = $('#busy'); if (!on) { b && b.remove(); return; } if (!b) { b = document.createElement('div'); b.id = 'busy'; b.innerHTML = '<div class="bx"><div class="spin"></div><div class="bt"></div></div>'; document.body.appendChild(b); } b.querySelector('.bt').textContent = t || '送っています…'; }
-function render(html, where = '#main') { if (where === '#main') { render.cur = render.keepTop ? 'home' : 'other'; render.dirty = false; } if (where === '#main' && !render.keepTop) $('#top').innerHTML = ''; $(where).innerHTML = html; if (where === '#main') window.scrollTo(0, 0); }
+function render(html, where = '#main') { if (where === '#main') { render.cur = render.keepTop ? 'home' : 'other'; render.dirty = false; } if (where === '#main' && !render.keepTop) $('#top').innerHTML = ''; $(where).innerHTML = html;
+  // 「戻る」が一番下だけだと長い画面でスクロールが要る。上にも同じ働きの「‹ 戻る」を出す（11/2 中井様）
+  if (where === '#main' && !render.keepTop && $('#main #bBack, #main #bBack2')) { const tb = document.createElement('div'); tb.className = 'topback'; tb.textContent = '‹ 戻る'; tb.onclick = () => { const b = $('#main #bBack, #main #bBack2'); if (b) b.click(); }; $('#main').prepend(tb); }
+  if (where === '#main') window.scrollTo(0, 0); }
 // 何か入れた後に「戻る」を押した時は確かめる（押し間違いで全部消えないように）
 document.addEventListener('chipchange', e => { if (e.target.closest && e.target.closest('#main')) render.dirty = true; });
 document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#main')) render.dirty = true; });
@@ -503,10 +507,9 @@ function viewHome() {
   // 大きいボタン＝次にやること
   const noQR = !qrOK() && !isNakai();
   const shuDay = r['中止'] === '終日' && !r['入場'];   // 終日中止の日は「入りました」を出さない（押すと中止が消えて働いた日になっていた）
-  const late = !r['入場'] && !r['退場'] && !r['中止'] && localTime() >= '13:00';   // 昼を過ぎて入場が無い＝押し忘れの方が多い（中止のある日・午後から来る人は「今来た」も同じ大きさで出す）
+  // 入っていないのに「出ました」は出さない。押し忘れは「入りました」の窓で入った時刻を直す（11/2 中井様「入らな出られへん」）
   if (shuDay) h += '<div class="main done" id="bShu"><div class="lb" style="font-size:20px">今日は終日中止です<small style="color:var(--blue)">中止をやめて作業する時はここを押す</small></div></div>';
-  else if (noQR && !(r['入場'] && r['退場'])) h += '<div class="main lock" id="bLock"><div class="lb">' + (r['入場'] || late ? '出ました' : '入りました') + '<small>現場に貼ってあるQRをカメラで読むと押せます</small></div><div class="qri">' + ICON.cam + '</div></div>';
-  else if (late) h += '<div class="main" id="bLate"><div class="lb">出ました<small>「入りました」を押し忘れた時（入った時刻も入れます）</small></div><div style="font-size:30px">›</div></div>';
+  else if (noQR && !(r['入場'] && r['退場'])) h += '<div class="main lock" id="bLock"><div class="lb">' + (r['入場'] ? '出ました' : '入りました') + '<small>現場に貼ってあるQRをカメラで読むと押せます</small></div><div class="qri">' + ICON.cam + '</div></div>';
   else if (!r['入場']) h += '<div class="main" id="bMain"><div class="lb">入りました<small>押すと人数を聞きます</small></div><div style="font-size:30px">›</div></div>';
   else if (!r['退場']) h += '<div class="main" id="bMain"><div class="lb">出ました<small>今日の進み・明日の予定を入れて記録</small></div><div style="font-size:30px">›</div></div>';
   else h += '<div class="main done"><div class="lb" style="font-size:20px">お疲れ様でした</div></div>';
@@ -518,7 +521,6 @@ function viewHome() {
   g += tile('bCh', 'var(--red)', ICON.umb, '中止', r['中止'] ? '✓ ' + esc(r['中止']) + '（' + esc(r['中止の理由']) + '）' : '雨・風など');
   if (f['ヒヤリハット']) g += tile('bHy', '#c98a00', ICON.bolt, 'ヒヤリハット', 'ケガ・危なかった事');
   h += '<div class="grid">' + g + '</div>';
-  if (!noQR && !shuDay && !r['入場'] && !r['退場']) h += late ? '<div class="main" id="bNow" style="background:#fff;color:var(--blue)"><div class="lb">入りました<small style="color:#3a3a3c">今、来た時（午後から・夜の作業）</small></div><div style="font-size:30px">›</div></div>' : '<button class="btn gray" id="bOut">出ました<small>「入りました」を押し忘れた時</small></button>';
   h = '<div class="card note" id="qBanner" style="display:none"><b></b>件 まだ届いていません。電波が戻ると自動で送ります　<span class="link" onclick="flushOutbox(true)">今すぐ送る</span></div>' + h;
   render.keepTop = true; render(h); render.keepTop = false; sendState();
   if ($('#ms')) $$('#ms button').forEach(x => x.onclick = e => { e.stopPropagation(); const n = $('#msN'); n.textContent = Math.max(1, +n.textContent + +x.dataset.d); });
@@ -529,10 +531,6 @@ function viewHome() {
   if ($('#kyWarn')) $('#kyWarn').onclick = viewKY;
   if ($('#bKk')) $('#bKk').onclick = viewKakunin;
   $('#bCh').onclick = viewChushi;
-  const forgotOut = () => { if (!qrOK() && !isNakai()) { viewHome(); toast('QRを読んでから10分たちました。もう一度、現場のQRをカメラで読んでください', 0); return; } if (f.KY && !r['作業内容']) return kyFirst(); viewTaijo(true); };
-  if ($('#bOut')) $('#bOut').onclick = forgotOut;
-  if ($('#bLate')) $('#bLate').onclick = forgotOut;
-  if ($('#bNow')) $('#bNow').onclick = () => { if (!qrOK() && !isNakai()) { viewHome(); toast('QRを読んでから10分たちました。もう一度、現場のQRをカメラで読んでください', 0); return; } confirmNinzu(S.ninzu || 1); };
   if ($('#bShu')) $('#bShu').onclick = () => {
     if (!confirm('終日中止を取り消して、作業しますか')) return;
     sendQ('chushi', Object.assign(P(), { hani: 'なし' }), { '中止': '', '中止の理由': '' });
@@ -585,17 +583,21 @@ function kyFirst() {
 // ---------- 入場：人数を確かめる窓 → 記録 ----------
 function confirmNinzu(n) {
   const m = document.createElement('div'); m.id = 'sheet';
-  m.innerHTML = '<div class="sh"><div class="grab"></div><h2 class="center" style="margin:6px 0 2px">今日は何名ですか</h2><div class="small center">自分も入れた人数</div>' + stepper('cn', n) + '<button class="btn big" id="cnOk">' + n + '名で 入りました</button><button class="btn gray" id="cnNo">やめる</button></div>';
+  m.innerHTML = '<div class="sh"><div class="grab"></div><h2 class="center" style="margin:6px 0 2px">今日は何名ですか</h2><div class="small center">自分も入れた人数</div>' + stepper('cn', n) + '<div class="small">入った時刻（押し忘れた時だけ直す）</div><input type="time" id="cnIn" value="' + localTime() + '"><button class="btn big" id="cnOk">' + n + '名で 入りました</button><button class="btn gray" id="cnNo">やめる</button></div>';
   document.body.appendChild(m);
   const upd = () => { $('#cnOk').textContent = stepVal('cn') + '名で 入りました'; };
   $$('#cn button').forEach(b => b.addEventListener('click', () => setTimeout(upd, 0)));
   $('#cnNo').onclick = () => m.remove();
   sheetClose(m);
-  $('#cnOk').onclick = () => { const v = stepVal('cn'); if (v < 1) { toast('1名以上にしてください'); return; } m.remove(); nyujoNow(v); };
+  $('#cnOk').onclick = () => {
+    const v = stepVal('cn'); if (v < 1) { toast('1名以上にしてください'); return; }
+    const t = $('#cnIn').value, now = localTime(); if (t && t > now) { toast('入った時刻が今より後になっています'); return; }
+    m.remove(); nyujoNow(v, t && t !== now ? t : '');
+  };
 }
-function nyujoNow(n) {
+function nyujoNow(n, inTime) {
   const qn = !qrOK();
-  sendQ('nyujo', Object.assign(P(), { ninzu: n, qrNone: qn }), { '入場': localTime(), '人数': String(n), 'QRなし': qn ? '○' : '' });
+  sendQ('nyujo', Object.assign(P(), { ninzu: n, qrNone: qn }, inTime ? { inTime } : {}), { '入場': inTime || localTime(),'人数': String(n), 'QRなし': qn ? '○' : '' });
   S.ninzu = n; LS.set('ninzu', n); markLast('入場');
   done('入りました（' + n + '名）', S.rec['入場'], S.site.features.KY && !S.rec['作業内容'] ? '<button class="btn big" id="bKY2">続けて KY を入れる</button>' : '');
   if ($('#bKY2')) { $('#bKY2').onclick = viewKY; setTimeout(() => { if ($('#bKY2')) viewKY(true); }, 1500); }   // 入場の後はそのままKYへ（忘れ防止、11/1 中井様）
