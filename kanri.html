@@ -900,9 +900,10 @@ function recCard(r, i, kyOn, ro) {   // ro＝見るだけ（業者の画面）
 function adminTab(tab) {
   A.tab = tab; const d = A.data;
   let h = '<div class="tabs">' + ['今日', '返事', '切替', '自分'].map(t => '<div data-t="' + t + '" class="' + (t === tab ? 'on' : '') + '">' + t + (t === '返事' && (d.pending.length + d.renraku.length) ? '（' + (d.pending.length + d.renraku.length) + '）' : '') + '</div>').join('') + '</div>';
+  // 過去の日へすぐ飛べるように：日付を選ぶ欄＋よく使う日のボタン（11/1 中井様「前の日をずっと押すのは操作性が悪い」）。「自分」でも使う
+  const dbar = '<div class="card dbar"><div class="row"><button class="btn gray" id="dPrev" aria-label="前の日">◀</button><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><button class="btn gray" id="dNext" aria-label="次の日"' + (d.today >= d.real ? ' disabled' : '') + '>▶</button></div><div class="qr-chips">' + [['今日', 0], ['昨日', -1], ['おととい', -2], ['1週間前', -7], ['1か月前', -30]].map(x => '<span data-jump="' + x[1] + '">' + x[0] + '</span>').join('') + '</div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2>';
   if (tab === '今日') {
-    // 過去の日へすぐ飛べるように：日付を選ぶ欄＋よく使う日のボタン（11/1 中井様「前の日をずっと押すのは操作性が悪い」）
-    h += '<div class="card dbar"><div class="row"><button class="btn gray" id="dPrev" aria-label="前の日">◀</button><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><button class="btn gray" id="dNext" aria-label="次の日"' + (d.today >= d.real ? ' disabled' : '') + '>▶</button></div><div class="qr-chips">' + [['今日', 0], ['昨日', -1], ['おととい', -2], ['1週間前', -7], ['1か月前', -30]].map(x => '<span data-jump="' + x[1] + '">' + x[0] + '</span>').join('') + '</div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2><div class="small">カードを押すと、時刻・人数・中止を直せます</div>';
+    h += dbar + '<div class="small">カードを押すと、時刻・人数・中止を直せます</div>';
     A.recs = [];
     d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2>' + (s.recs.length ? s.recs.map(r => recCard(r, A.recs.push(r) - 1, s.features.KY)).join('') : '<div class="small">まだ誰も押していません</div>') + '<div style="margin-top:12px"><span class="link" data-add="' + esc(s.id) + '">＋ 押し忘れの記録を足す</span></div></div>'; });
     h += '<button class="btn gray" id="reload">更新</button>';
@@ -919,7 +920,13 @@ function adminTab(tab) {
   }
   if (tab === '自分') {
     h += '<div class="card">' + (d.open ? '<div class="note card"><b>今</b>' + esc(d.open['種類']) + ' ' + esc(d.open['現場名']) + ' ' + esc(d.open['何をした']) + '　' + esc(d.open['入']) + '〜</div><button class="btn red" id="myOut">出ました</button>' : '') + '<h3>どこ</h3>' + chips('ms', ['現場', '事務所', '現地調査', '移動']) + '<h3>現場（現場・現地調査の時）</h3>' + chips('mg', d.sites.map(s => s.name), { sub: true, opt: true }) + '<input type="text" id="mgOther" placeholder="一覧に無い現場・場所"><h3>何をした</h3>' + chips('mn', ['施工管理', '打合せ', '検査', '買い出し', '書類', '見積', '移動', 'その他'], { sub: true, opt: true }) + '<button class="btn ok" id="myIn">入りました（今から）</button></div>';
-    h += '<div class="card"><h3>今日の自分</h3>' + (d.my.length ? d.my.map(r => '<div class="line">' + esc(r['種類']) + ' ' + esc(r['現場名']) + ' ' + esc(r['何をした']) + '　' + esc(r['入']) + '〜' + esc(r['出']) + '</div>').join('') : '<div class="small">まだありません</div>') + '</div>';
+    // その日の自分：時刻順・どこから来た記録か・合計（11/2 中井様「自分の一日の行動はどこで見る？」）
+    const src = { '（位置の記録）': 'タイムライン', '（位置の記録・直した）': 'タイムライン（直した）', '（事務所の自動）': '自動' };
+    const mins = s => /^\d\d:\d\d$/.test(s || '') ? +s.slice(0, 2) * 60 + +s.slice(3) : null;
+    const hm = m => Math.floor(m / 60) + '時間' + String(m % 60).padStart(2, '0') + '分';
+    const my = d.my.slice().sort((a, b) => String(a['入']).localeCompare(String(b['入']))), sum = {};
+    my.forEach(r => { const a = mins(r['入']), b = mins(r['出']); if (a != null && b != null && b > a) sum[r['種類']] = (sum[r['種類']] || 0) + b - a; });
+    h += dbar.replace('</h2>', 'の自分</h2>') + '<div class="card">' + (my.length ? my.map(r => '<div class="line"><b>' + esc(r['入']) + '〜' + esc(r['出']) + '</b>　' + esc(r['現場名'] || r['種類']) + '<div class="small">' + esc(r['種類']) + '・' + esc(src[r['何をした']] || ('手で押した' + (r['何をした'] ? '（' + r['何をした'] + '）' : ''))) + '</div></div>').join('') + '<div class="small" style="margin-top:10px">合計：' + Object.keys(sum).map(k => esc(k) + ' ' + hm(sum[k])).join('・') + '</div>' : '<div class="small">まだありません</div>') + '</div>';
   }
   render(h);
   $$('.tabs div').forEach(t => t.onclick = () => adminTab(t.dataset.t));
