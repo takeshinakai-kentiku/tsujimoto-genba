@@ -217,6 +217,8 @@ const TEST = /[?&]t=1(&|$)/.test(location.search);
 function jpErr(e) { const m = String(e && e.message || e || ''); return /load failed|failed to fetch|network|abort|timeout|timed out/i.test(m) ? '電波が弱くて送れませんでした。電波の良い所でもう一度押してください' : (m || 'うまくいきませんでした'); }
 window.addEventListener('unhandledrejection', e => { try { busy(false); toast(jpErr(e.reason), 0); } catch (x) {} });
 const LS = { get: k => { try { return localStorage.getItem('tg.' + k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem('tg.' + k) : localStorage.setItem('tg.' + k, v); return true; } catch (e) { return false; } } };
+// 携帯ごとの印（見られる範囲は変えない。1台で何人もの名前を選ぶ・夜中に開く、を中井へ知らせるためだけに使う、11/2）
+const DEV = LS.get('dev') || (() => { const v = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); LS.set('dev', v); return v; })();
 document.addEventListener('touchstart', () => {}, { passive: true });   // アイフォンで押した時に縮む（押した感じを出す）
 const S = { siteId: '', site: null, company: '', foreman: '', ninzu: 1, qrNone: false, boot: null, rec: null };
 const $ = s => document.querySelector(s);
@@ -355,7 +357,7 @@ async function reboot(force) {   // force＝画面を必ず描き直す（会社
   else if (draw) busy(true, '読み込み中…');
   const seq = flushOutbox.seq || 0;
   try {
-    const fresh = await call('getBoot', S.siteId, S.company, S.foreman);
+    const fresh = await call('getBoot', S.siteId, S.company, S.foreman, DEV);
     busy(false);
     // 読んでいる間に届いた送信の返事の方が新しい（入場が消えて2度押しにならないように）。今日の行の時だけ
     if ((flushOutbox.seq || 0) !== seq && S.rec && fresh.site && S.rec['日付'] === fresh.today) fresh.rec = S.rec;
@@ -484,7 +486,7 @@ function viewHome() {
   if (S.site.rain && r['入場'] && !r['明日']) top += '<div class="card note"><b>☂ 明日は雨の予報です</b>明日はどうしますか<div class="row"><button class="btn" data-a="来る">来る</button><button class="btn red" data-a="来ない">来ない</button></div></div>';
   // 中井の返事：一番新しい1件だけ大きく、残りは件数だけ（大きいボタンが下に押し出されないように）
   const rps = b.replies || [], k0 = rps[rps.length - 1];
-  if (k0) top += '<div class="card note rp" data-rp="' + esc(k0.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 ' + esc(k0.by || '中井') + 'の返事（' + esc(k0.when.slice(5)) + '）' + esc(k0.basho ? '・' + k0.basho : '') + (rps.length > 1 ? '　ほか' + (rps.length - 1) + '件' : '') + '</b><span class="small">聞いたこと：' + esc(k0.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k0.reply) + '</span><br><span class="link" style="font-size:15px">写真とこれまでのやりとりを見る ›</span></div>';
+  if (k0) top += '<div class="card note rp" data-rp="' + esc(k0.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 ' + esc(k0.by || '中井') + 'の返事（' + esc(k0.when.slice(5)) + '）' + esc(k0.basho ? '・' + k0.basho : '') + (rps.length > 1 ? '　ほか' + (rps.length - 1) + '件' : '') + '</b><span class="small">聞いたこと' + (k0.foreman && k0.foreman !== S.foreman ? '（' + esc(k0.foreman) + 'さん）' : '') + '：' + esc(k0.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k0.reply) + '</span><br><span class="link" style="font-size:15px">写真とこれまでのやりとりを見る ›</span></div>';
   render(top, '#top');
   $$('#top [data-rp]').forEach(x => x.onclick = () => { viewKakunin(); });
   if ($('#yOk')) $('#yOk').onclick = async () => { if (!/^\d\d:\d\d$/.test($('#yOut').value)) { toast('出た時刻を入れてください', 0); return; } busy(true); try { await call('taijo', Object.assign(P(), { date: b.yesterdayOpen.date, time: $('#yOut').value, qrNone: !qrOK() })); toast('前の日の退場を記録しました'); reboot(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } };
@@ -568,7 +570,7 @@ function showPhoto(src) {
 function kkCard(k, photoAttr) {
   const st = k.reply ? '<span class="pill out">返事あり</span>' : '<span class="pill" style="background:#fff4e5;color:#b35c00">返事待ち</span>';
   return '<div class="card kk"><div class="kk-h"><span class="small">' + esc((k.when || '').slice(5).replace('-', '/')) + (k.basho ? '　' + esc(k.basho) : '') + (k.site && photoAttr === 'data-p' ? '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) : '') + '</span>' + st + '</div>'
-    + '<div class="kk-q"><b>聞いたこと</b>' + esc(k.text || '（写真のみ）') + '</div>'
+    + '<div class="kk-q"><b>聞いたこと' + (photoAttr === 'data-mp' && k.foreman && k.foreman !== S.foreman ? '（' + esc(k.foreman) + 'さん）' : '') + '</b>' + esc(k.text || '（写真のみ）') + '</div>'
     + (k.photos.length ? '<div>' + k.photos.map((x, i) => '<span class="phbtn" ' + photoAttr + '="' + esc(x) + '">📷 写真' + (i + 1) + 'を見る</span>').join('') + '</div>' : '')
     + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + '</div>' : '') + '</div>';
 }
@@ -713,7 +715,7 @@ function viewChushi() {
 // ---------- ここどうしますか ----------
 async function loadMyHist(only) {
   let list = [];
-  try { list = await call('myKakunin', S.siteId, S.company, S.foreman); } catch (e) { if ($('#hist')) $('#hist').innerHTML = '<div class="small">読み込めませんでした</div>'; return; }
+  try { list = await call('myKakunin', S.siteId, S.company, S.foreman, DEV); } catch (e) { if ($('#hist')) $('#hist').innerHTML = '<div class="small">読み込めませんでした</div>'; return; }
   if (!$('#hist')) return;
   if (only) list = list.filter(k => k.id === only).concat(list.filter(k => k.id !== only));
   $('#hist').innerHTML = list.length ? list.map(k => kkCard(k, 'data-mp')).join('') : '<div class="small">まだありません</div>';
