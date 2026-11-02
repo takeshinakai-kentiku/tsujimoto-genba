@@ -944,7 +944,7 @@ function adminTab(tab) {
   if ($('#myIn')) $('#myIn').onclick = () => { const sh = chipVal('ms')[0]; if (!sh) { toast('どこかを選んでください'); return; } safe(async () => { await call('adminTime', A.pin, { inout: '入', shurui: sh, genba: $('#mgOther').value.trim() || chipVal('mg')[0] || '', nani: chipVal('mn')[0] || '' }); adminStart(); })(); };
   if ($('#myOut')) $('#myOut').onclick = safe(async () => { await call('adminTime', A.pin, { inout: '出' }); adminStart(); });
 }
-// ---------- 一次の業者の画面（gyousha.html?k=鍵、11/2）：自分と下の会社の分を見る・質問に返事・中井に頼み事・下の会社を足す ----------
+// ---------- 一次の業者の画面（gyousha.html?k=鍵、11/2）：自分と協力業者の分を見る・質問に返事・中井に頼み事・協力業者を足す ----------
 const G = { tab: '今日', date: '', data: null };
 async function gStart(keep) {
   $('#tabbar').style.display = 'none';
@@ -978,8 +978,8 @@ function gTab(tab) {
     h += '<h2 style="margin-top:22px">これまでの頼み事・ヒヤリハット（30日）</h2>' + (d.renraku.length ? d.renraku.map(k => '<div class="card"><div class="kk-h"><span class="small">' + esc((k.when || '').slice(5).replace('-', '/')) + '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</span>' + (k.done ? '<span class="pill out">中井 済</span>' : '<span class="pill" style="background:#fff4e5;color:#b35c00">中井 まだ</span>') + '</div><b>' + (k.kega ? '🚨 ' : '') + esc(k.shurui) + '</b><div class="pre">' + esc(k.text) + '</div>' + (k.photos.length ? '<div>' + k.photos.map((x, i) => '<span class="phbtn" data-gp="' + esc(x) + '">📷 写真' + (i + 1) + 'を見る</span>').join('') + '</div>' : '') + '</div>').join('') : '<div class="small">まだありません</div>');
   }
   if (tab === '会社') {
-    h += '<div class="small">下の会社の職長さんは、現場のQRを読んで、ここで足した会社と名前を選びます</div>';
-    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2><h3>この画面に出る会社</h3><div class="rc-w">' + s.cos.map(c => '<span>' + esc(c) + '</span>').join('') + '</div><h3>下の会社・職長を足す</h3><input type="text" data-gco="' + esc(s.id) + '" placeholder="会社名（例：○○塗装）"><input type="text" data-gfm="' + esc(s.id) + '" placeholder="職長の名前（例：山田）"><div class="small">職長が2人以上の時は「山田、佐藤」のように「、」で区切ります</div><button class="btn" data-gadd="' + esc(s.id) + '">足す</button></div>'; });
+    h += '<div class="small">協力業者の職長さんは、現場のQRを読んで、ここで足した会社と名前を選びます</div>';
+    d.sites.forEach(s => { h += '<div class="card"><h2>' + esc(s.name) + '</h2><h3>この画面に出る会社</h3><div class="rc-w">' + s.cos.map(c => '<span>' + esc(c) + '</span>').join('') + '</div><h3>協力業者・職長を足す</h3><input type="text" data-gco="' + esc(s.id) + '" placeholder="会社名（例：○○塗装）"><input type="text" data-gfm="' + esc(s.id) + '" placeholder="職長の名前（例：山田）"><div class="small">職長が2人以上の時は「山田、佐藤」のように「、」で区切ります</div><button class="btn" data-gadd="' + esc(s.id) + '">足す</button></div>'; });
   }
   render(h);
   $$('.tabs div').forEach(t => t.onclick = () => gTab(t.dataset.t));
