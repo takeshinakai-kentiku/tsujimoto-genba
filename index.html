@@ -959,13 +959,20 @@ const G = { tab: '今日', date: '', data: null };
 async function gStart(keep) {
   $('#tabbar').style.display = 'none';
   const y = keep ? window.scrollY : 0;
-  busy(true, '読み込み中…');
-  try { G.data = await call('gyoushaToday', INIT.gk, G.date); } catch (e) { busy(false); render('<div class="card"><b>開けませんでした</b><div class="small">' + esc(jpErr(e)) + '</div></div><button class="btn" id="gRe">もう一度読み込む</button>'); $('#gRe').onclick = () => gStart(); return; }
-  busy(false);
+  // 2回目からの読み直しは画面を覆わない（窓口が混んだ時に何も押せなくなっていた、11/2）。古い読み直しの返事は捨てる
+  const my = G.seq = (G.seq || 0) + 1, first = !G.data;
+  if (first) busy(true, '読み込み中…'); else $('#hdr .who').textContent = '更新中…';
+  let d0; try { d0 = await call('gyoushaToday', INIT.gk, G.date); } catch (e) { if (my !== G.seq) return; busy(false); if (!first) { toast(jpErr(e), 0); $('#hdr .who').textContent = '更新できませんでした'; return; } render('<div class="card"><b>開けませんでした</b><div class="small">' + esc(jpErr(e)) + '</div></div><button class="btn" id="gRe">もう一度読み込む</button>'); $('#gRe').onclick = () => gStart(); return; }
+  if (my !== G.seq) return;
+  G.data = d0; busy(false);
   const d = G.data;
   $('#hdr .site').textContent = d.company + 'さんの画面'; $('#hdr .who').innerHTML = jpDate(d.real) + '　' + esc(d.now);
   $('#top').innerHTML = '';
+  // 裏の読み直しで描き直しても、書きかけの文は消さない
+  const fkey = el => el.id || (el.dataset.gco ? 'co:' + el.dataset.gco : el.dataset.gfm ? 'fm:' + el.dataset.gfm : (el.closest('.card') && el.closest('.card').querySelector('[data-greply]') ? 're:' + el.closest('.card').querySelector('[data-greply]').dataset.greply : ''));
+  const kept = {}; $$('#main textarea, #main input[type=text]').forEach(el => { const k = fkey(el); if (k && el.value) kept[k] = el.value; });
   gTab(G.tab);
+  $$('#main textarea, #main input[type=text]').forEach(el => { const k = fkey(el); if (k && kept[k] && !el.value) el.value = kept[k]; });
   if (y) window.scrollTo(0, y);
 }
 function gTab(tab) {
@@ -1005,7 +1012,7 @@ function gTab(tab) {
   $$('span[data-gp]').forEach(b => b.onclick = async () => { busy(true, '写真を読んでいます…'); try { showPhoto(await call('gyoushaPhoto', INIT.gk, b.dataset.gp)); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
   $$('[data-greply]').forEach(b => b.onclick = async () => {
     const tx = b.parentElement.querySelector('textarea').value.trim(); if (!tx) { toast('返事を書いてください'); return; }
-    busy(true, '送っています…'); try { await call('gyoushaReply', INIT.gk, b.dataset.greply, tx); toast('返事を送りました'); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); }
+    busy(true, '送っています…'); try { await call('gyoushaReply', INIT.gk, b.dataset.greply, tx); b.parentElement.querySelector('textarea').value = ''; toast('返事を送りました'); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); }
     gStart();   // もう返事が出ていた時も、読み直して最新を出す
   });
   if ($('#gGo')) { const qid = 'g' + Date.now() + Math.random().toString(36).slice(2, 5); $('#gGo').onclick = async () => {
@@ -1013,12 +1020,12 @@ function gTab(tab) {
     const sid = many ? (d.sites.find(s => s.name === chipVal('gs')[0]) || {}).id : (d.sites[0] || {}).id;
     if (!sid) { toast('現場を選んでください', 0); return; }
     busy(true); try { await call('gyoushaRenraku', { key: INIT.gk, qid, siteId: sid, text: tx, photos: PHOTOS }); } catch (e) { busy(false); toast(jpErr(e), 0); return; }
-    busy(false); toast('中井に送りました'); gStart();
+    busy(false); if ($('#gTx')) $('#gTx').value = ''; toast('中井に送りました'); gStart();
   }; }
   $$('[data-gadd]').forEach(b => b.onclick = async () => {
     const id = b.dataset.gadd, co = $('[data-gco="' + id + '"]').value.trim(), fm = $('[data-gfm="' + id + '"]').value.trim();
     if (!co || !fm) { toast('会社名と職長の名前を入れてください', 0); return; }
-    busy(true); try { await call('gyoushaAddSub', INIT.gk, id, co, fm); toast('足しました'); gStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); }
+    busy(true); try { await call('gyoushaAddSub', INIT.gk, id, co, fm); $('[data-gco="' + id + '"]').value = ''; $('[data-gfm="' + id + '"]').value = ''; toast('足しました'); gStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); }
   });
 }
 start();
