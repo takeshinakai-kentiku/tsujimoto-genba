@@ -143,6 +143,8 @@ details.shin summary{cursor:pointer;list-style:none}details.shin summary::-webki
 #qBanner b{display:inline;font-size:17px;color:#8a6d00}
 .chip.free{border-style:dashed;color:var(--blue);background:#f5f9ff}
 .chip.all{font-weight:700;border-width:2px}
+.fbl{margin:6px 0}.fbi{display:inline-block;background:#eef3ff;border-radius:8px;padding:6px 10px;margin:3px 6px 3px 0;font-size:15px}.fbi b{color:#c62828;margin-left:6px;cursor:pointer}
+.fls{margin-top:8px}.flk{display:block;background:#fff;border:2px solid var(--blue);color:var(--blue);border-radius:10px;padding:12px;margin:6px 0;font-size:17px;font-weight:700;text-decoration:none;text-align:center}
 #tabbar div{color:#48484a}#tabbar div.on{color:var(--blue)}
 :root{--blue:#0060df;--orange:#d9480f;--gray:#48484a}
 .small{font-size:15px;color:#3a3a3c}
@@ -314,6 +316,28 @@ document.addEventListener('change', async e => {
   if (!ph) { toast('この写真は使えません。もう一度撮ってください', 0); return; }
   PHOTOS.push(ph); render.dirty = true; drawThumbs();
 });
+// 中井が返事・連絡に付けるPDF・写真（11/12）。カードごとに別の入れ物（FB[鍵]）。写真は小さくしてから送る
+const FB = {};
+function fileBox(key) { FB[key] = []; return '<label class="photoin">📎 PDF・写真を付ける（3つまで）<input type="file" accept="application/pdf,image/*" multiple data-fb="' + esc(key) + '"></label><div class="fbl" data-fbl="' + esc(key) + '"></div>'; }
+function drawFB(key) { const el = $('[data-fbl="' + key + '"]'); if (el) el.innerHTML = (FB[key] || []).map((f, i) => '<span class="fbi">' + (f.data.indexOf('data:application/pdf') === 0 ? '📄 ' : '🖼 ') + esc(f.name) + ' <b data-fbx="' + esc(key) + '" data-i="' + i + '">✕</b></span>').join(''); }
+function fileLinks(fs) { return (fs || []).length ? '<div class="fls">' + fs.map(f => '<a class="flk" href="' + esc(f.u) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + (f.t === 'application/pdf' ? '📄 ' : '🖼 ') + esc(f.n) + ' を開く</a>').join('') + '</div>' : ''; }
+document.addEventListener('change', async e => {
+  const key = e.target.dataset && e.target.dataset.fb; if (key == null || !e.target.files.length) return;
+  const list = FB[key] = FB[key] || [];
+  for (const file of [...e.target.files]) {
+    if (list.length >= 3) { toast('3つまでです'); break; }
+    if (file.type === 'application/pdf') {
+      if (file.size > 9 * 1024 * 1024) { toast(file.name + ' は大きすぎます（9MBまで）', 0); continue; }
+      const data = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(file); });
+      if (data) list.push({ name: file.name, data });
+    } else if (/^image\//.test(file.type)) {
+      busy(true, '写真を小さくしています…'); const data = await shrink(file, 1600, 0.8); busy(false);
+      if (data) list.push({ name: file.name.replace(/\.\w+$/, '') + '.jpg', data });
+    } else toast('PDFと写真だけ付けられます', 0);
+  }
+  e.target.value = ''; render.dirty = true; drawFB(key);
+});
+document.addEventListener('click', e => { const x = e.target.closest('[data-fbx]'); if (!x) return; FB[x.dataset.fbx].splice(+x.dataset.i, 1); drawFB(x.dataset.fbx); });
 function drawThumbs() { $('#thumbs').innerHTML = PHOTOS.map((p, i) => '<img src="' + p + '" data-i="' + i + '" style="cursor:pointer" title="押すと消す">').join(''); }   // 消した後も番号を付け直す
 document.addEventListener('click', e => { const im = e.target.closest('#thumbs img'); if (!im) return; if (confirm('この写真を消しますか')) { PHOTOS.splice(+im.dataset.i, 1); drawThumbs(); } });
 function recent(what) { try { const l = JSON.parse(LS.get('last') || '{}'); return l.what === what && l.key === recKey() && Date.now() - l.ts < 5 * 60000; } catch (e) { return false; } }
@@ -507,12 +531,12 @@ function viewHome() {
   const b = S.boot, f = S.site.features, r = S.rec || {};
   tabbar('home');
   let top = '';
-  b.notices.forEach(n => top += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）</b>' + esc(n.text) + '</div>');
+  b.notices.forEach(n => top += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）' + (n.to ? esc(n.to) + 'さんへ' : '') + '</b><span class="pre">' + esc(n.text) + '</span>' + fileLinks(n.files) + '</div>');
   if (b.yesterdayOpen && !outbox().some(x => x.fn === 'taijo' && x.payload.day === b.yesterdayOpen.date)) top += '<div class="card note"><b>' + jpDate(b.yesterdayOpen.date) + 'の「出ました」が押されていません</b>' + jpDate(b.yesterdayOpen.date) + '（' + esc(b.yesterdayOpen.in) + '入場）は何時に出ましたか' + (!qrOK() && !isNakai() ? '<br><span class="small">現場のQRを読んで開くと入れられます</span>' : '<input type="time" id="yOut" value="17:00"><button class="btn" id="yOk">この時間で記録</button>') + '</div>';
   if (S.site.rain && r['入場'] && !r['明日']) top += '<div class="card note"><b>☂ 明日は雨の予報です</b>明日はどうしますか<div class="row"><button class="btn" data-a="来る">来る</button><button class="btn red" data-a="来ない">来ない</button></div></div>';
   // 中井の返事：一番新しい1件だけ大きく、残りは件数だけ（大きいボタンが下に押し出されないように）
   const rps = b.replies || [], k0 = rps[rps.length - 1];
-  if (k0) top += '<div class="card note rp" data-rp="' + esc(k0.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 ' + esc(k0.by || '中井') + 'の返事（' + esc(k0.when.slice(5)) + '）' + esc(k0.basho ? '・' + k0.basho : '') + (rps.length > 1 ? '　ほか' + (rps.length - 1) + '件' : '') + '</b><span class="small">' + (k0.kind === 'ren' ? '頼んだこと' : '聞いたこと') + (k0.foreman && k0.foreman !== S.foreman ? '（' + esc(k0.foreman) + 'さん）' : '') + '：' + esc(k0.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k0.reply) + '</span><br><span class="link" style="font-size:15px">写真とこれまでのやりとりを見る ›</span></div>';
+  if (k0) top += '<div class="card note rp" data-rp="' + esc(k0.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 ' + esc(k0.by || '中井') + 'の返事（' + esc(k0.when.slice(5)) + '）' + esc(k0.basho ? '・' + k0.basho : '') + (rps.length > 1 ? '　ほか' + (rps.length - 1) + '件' : '') + '</b><span class="small">' + (k0.kind === 'ren' ? '頼んだこと' : '聞いたこと') + (k0.foreman && k0.foreman !== S.foreman ? '（' + esc(k0.foreman) + 'さん）' : '') + '：' + esc(k0.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k0.reply) + '</span>' + fileLinks(k0.files) + '<br><span class="link" style="font-size:15px">写真とこれまでのやりとりを見る ›</span></div>';
   render(top, '#top');
   $$('#top [data-rp]').forEach(x => x.onclick = () => { k0.kind === 'ren' ? viewRenraku('頼み事') : viewKakunin(); });
   if ($('#yOk')) $('#yOk').onclick = async () => { if (!/^\d\d:\d\d$/.test($('#yOut').value)) { toast('出た時刻を入れてください', 0); return; } busy(true); try { await call('taijo', Object.assign(P(), { date: b.yesterdayOpen.date, time: $('#yOut').value, qrNone: !qrOK() })); toast('前の日の退場を記録しました'); reboot(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } };
@@ -627,7 +651,7 @@ function kkCard(k, photoAttr) {
   return '<div class="card kk"><div class="kk-h"><span class="small">' + esc((k.when || '').slice(5).replace('-', '/')) + (k.basho ? '　' + esc(k.basho) : '') + (k.site && photoAttr === 'data-p' ? '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) : '') + '</span>' + st + '</div>'
     + '<div class="kk-q"><b>聞いたこと' + (photoAttr === 'data-mp' && k.foreman && k.foreman !== S.foreman ? '（' + esc(k.foreman) + 'さん）' : '') + '</b>' + esc(k.text || '（写真のみ）') + '</div>'
     + (k.photos.length ? '<div>' + k.photos.map((x, i) => '<span class="phbtn" ' + photoAttr + '="' + esc(x) + '">📷 写真' + (i + 1) + 'を見る</span>').join('') + '</div>' : '')
-    + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + '</div>' : '') + '</div>';
+    + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + fileLinks(k.files) + '</div>' : '') + '</div>';
 }
 // 頼み事・ヒヤリハットのカード（中井の返事・済の印つき。中井の画面・業者の画面・職長の画面で同じ物、11/10）
 function renCard(k, photoAttr, withWho) {
@@ -635,7 +659,7 @@ function renCard(k, photoAttr, withWho) {
   return '<div class="card kk" data-nm="' + esc(pnm(k)) + '"><div class="kk-h"><span class="small">' + esc((k.when || '').slice(5).replace('-', '/')) + (withWho ? '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) : '') + '</span>' + st + '</div>'
     + '<div class="kk-q"><b>' + (k.kega ? '🚨 ' : '') + esc(k.shurui) + (!withWho && k.foreman && k.foreman !== S.foreman ? '（' + esc(k.foreman) + 'さん）' : '') + '</b>' + esc(k.text || '（写真のみ）') + '</div>'
     + (k.photos.length ? '<div>' + k.photos.map((x, i) => '<span class="phbtn" ' + photoAttr + '="' + esc(x) + '">📷 写真' + (i + 1) + 'を見る</span>').join('') + '</div>' : '')
-    + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + '</div>' : '') + '</div>';
+    + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + fileLinks(k.files) + '</div>' : '') + '</div>';
 }
 // 写真を保存する時の名前：現場名_日時（例：フローラ2_202611100929）
 function pnm(k) { return String(k.site || '').replace(/外壁塗装工事|改修工事|工事$/g, '') + '_' + String(k.when || '').replace(/\D/g, '').slice(0, 12); }
@@ -1002,10 +1026,14 @@ function adminTab(tab) {
     h += '<button class="btn gray" id="reload">更新</button>';
   }
   if (tab === '返事') {
+    // 中井から先に送る（返事を待たずに、PDF・写真を付けて頼む。11/12 中井様「チラシのPDFを岸本さんに」）。職長の画面の一番上と業者の画面に出る
+    const sd = A.sendSite || (d.sites[0] || {}).id || '', cos = (d.siteCos || {})[sd] || [];
+    h += '<div class="card" id="nsW"><h2>📤 中井から送る</h2><div class="small">PDF・写真を付けて職長さんへ。職長の画面の一番上と、業者の画面に出ます</div><h3>現場</h3>' + chips('nsS', d.sites.map(s => s.name), { sub: true, value: (d.sites.find(s => s.id === sd) || {}).name }) + '<h3>だれに</h3>' + chips('nsC', ['この現場の全員'].concat(cos), { sub: true, value: 'この現場の全員' }) + '<textarea id="nsT" placeholder="例：このチラシを各戸のポストに入れてください"></textarea>' + fileBox('ns') + '<button class="btn ok" id="nsGo">送る</button>'
+      + (d.notices.filter(n => n.siteId).length ? '<h3>今出している連絡</h3>' + d.notices.filter(n => n.siteId).map(n => '<div class="line"><b>' + esc((d.sites.find(s => s.id === n.siteId) || {}).name || '') + '　' + esc(n.to || '全員') + '</b>　' + esc(n.when.slice(5)) + '<div class="small">' + esc(n.text) + ((n.files || []).length ? '（📎' + n.files.length + '）' : '') + '</div><span class="link" data-noff="' + n.row + '">この連絡を消す</span></div>').join('') : '') + '</div>';
     if (!d.pending.length && !d.renraku.length) h += '<div class="card">返事待ちはありません</div>';
-    d.pending.forEach(k => h += '<div class="card" data-k="' + esc(k.id) + '" data-nm="' + esc(pnm(k)) + '"><b>📷 ここどうしますか　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + (k.basho ? '　' + esc(k.basho) : '') + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div>' + shareBar(k) + '<div class="qr-chips">' + ['OKです', 'そのままで大丈夫です', '明日見に行きます', '電話します', '写真をもう1枚ください'].map(x => '<span data-qt="' + x + '">' + x + '</span>').join('') + '</div><textarea placeholder="返事（職長の画面に出ます）"></textarea><button class="btn ok" data-reply="' + esc(k.id) + '">返事を送る</button></div>');
+    d.pending.forEach(k => h += '<div class="card" data-k="' + esc(k.id) + '" data-nm="' + esc(pnm(k)) + '"><b>📷 ここどうしますか　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + (k.basho ? '　' + esc(k.basho) : '') + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div>' + shareBar(k) + '<div class="qr-chips">' + ['OKです', 'そのままで大丈夫です', '明日見に行きます', '電話します', '写真をもう1枚ください'].map(x => '<span data-qt="' + x + '">' + x + '</span>').join('') + '</div><textarea placeholder="返事（職長の画面に出ます）"></textarea>' + fileBox('k' + k.id) + '<button class="btn ok" data-reply="' + esc(k.id) + '">返事を送る</button></div>');
     // 頼み事にも文で返事できる（職長の画面・業者の画面に出る。11/10）。返事が要らない物は「済にする」だけ
-    d.renraku.forEach(k => h += '<div class="card" data-nm="' + esc(pnm(k)) + '"><b>' + (k.kega ? '🚨 ' : '📝 ') + esc(k.shurui) + '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div>' + shareBar(k) + '<div class="qr-chips">' + ['承知しました', '持って行きます', '確認して連絡します', '電話します'].map(x => '<span data-qt="' + x + '">' + x + '</span>').join('') + '</div><textarea placeholder="返事（職長の画面・業者の画面に出ます）"></textarea><button class="btn ok" data-rreply="' + esc(k.id) + '">返事を送る（済になります）</button><button class="btn gray" data-done="' + esc(k.id) + '">返事なしで済にする</button></div>');
+    d.renraku.forEach(k => h += '<div class="card" data-nm="' + esc(pnm(k)) + '"><b>' + (k.kega ? '🚨 ' : '📝 ') + esc(k.shurui) + '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div>' + shareBar(k) + '<div class="qr-chips">' + ['承知しました', '持って行きます', '確認して連絡します', '電話します'].map(x => '<span data-qt="' + x + '">' + x + '</span>').join('') + '</div><textarea placeholder="返事（職長の画面・業者の画面に出ます）"></textarea>' + fileBox('r' + k.id) + '<button class="btn ok" data-rreply="' + esc(k.id) + '">返事を送る（済になります）</button><button class="btn gray" data-done="' + esc(k.id) + '">返事なしで済にする</button></div>');
     h += '<h2 style="margin-top:22px">これまでの返事（30日）</h2><div id="ahist"><div class="small">読み込み中…</div></div>';
     h += '<h2 style="margin-top:22px">これまでの頼み事（30日）</h2><div id="rhist"><div class="small">読み込み中…</div></div>';
   }
@@ -1045,8 +1073,19 @@ function adminTab(tab) {
   if ($('#ahist')) call('adminHistory', A.pin, 30).then(list => { if (!$('#ahist')) return; $('#ahist').innerHTML = list.length ? list.map(k => kkCard(k, 'data-p').replace('<div class="card kk"', '<div class="card kk" data-nm="' + esc(pnm(k)) + '"')).join('') : '<div class="small">まだありません</div>'; loadAdminImgs(); }).catch(() => { if ($('#ahist')) $('#ahist').innerHTML = '<div class="small">読み込めませんでした</div>'; });
   if ($('#ashin')) call('adminShinki', A.pin, 120).then(list => { if (!$('#ashin')) return; $('#ashin').innerHTML = list.length ? list.map(x => shinCard(x, true)).join('') : '<div class="card">まだありません</div>'; }).catch(() => { if ($('#ashin')) $('#ashin').innerHTML = '<div class="small">読み込めませんでした</div>'; });
   if ($('#rhist')) call('adminRenrakuHistory', A.pin, 30).then(list => { if (!$('#rhist')) return; $('#rhist').innerHTML = list.length ? list.map(k => renCard(k, 'data-p', true)).join('') : '<div class="small">まだありません</div>'; loadAdminImgs(); }).catch(() => { if ($('#rhist')) $('#rhist').innerHTML = '<div class="small">読み込めませんでした</div>'; });
-  $$('[data-rreply]').forEach(b => b.onclick = async () => { const tx = b.parentElement.querySelector('textarea').value.trim(); if (!tx) { toast('返事を書いてください'); return; } busy(true); try { await call('adminRenrakuReply', A.pin, b.dataset.rreply, tx); toast('返事を送りました'); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
-  $$('[data-reply]').forEach(b => b.onclick = async () => { const tx = b.parentElement.querySelector('textarea').value.trim(); if (!tx) { toast('返事を書いてください'); return; } busy(true); try { await call('adminReply', A.pin, b.dataset.reply, tx); toast('返事を送りました'); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
+  // 返事にPDF・写真を付けられる（11/12）。文が無くてもファイルだけで送れる
+  $$('[data-rreply]').forEach(b => b.onclick = async () => { const tx = b.parentElement.querySelector('textarea').value.trim(), fs = FB['r' + b.dataset.rreply] || []; if (!tx && !fs.length) { toast('返事を書いてください'); return; } busy(true, fs.length ? 'ファイルを送っています…' : '送っています…'); try { await call('adminRenrakuReply', A.pin, b.dataset.rreply, tx, fs); render.dirty = false; toast('返事を送りました'); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
+  $$('[data-reply]').forEach(b => b.onclick = async () => { const tx = b.parentElement.querySelector('textarea').value.trim(), fs = FB['k' + b.dataset.reply] || []; if (!tx && !fs.length) { toast('返事を書いてください'); return; } busy(true, fs.length ? 'ファイルを送っています…' : '送っています…'); try { await call('adminReply', A.pin, b.dataset.reply, tx, fs); render.dirty = false; toast('返事を送りました'); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
+  if ($('[data-chips="nsS"]')) $('[data-chips="nsS"]').addEventListener('chipchange', () => { const s = d.sites.find(x => x.name === chipVal('nsS')[0]); A.sendSite = s ? s.id : ''; $('[data-chips="nsC"]').outerHTML = chips('nsC', ['この現場の全員'].concat((d.siteCos || {})[A.sendSite] || []), { sub: true, value: 'この現場の全員' }); });
+  if ($('#nsGo')) $('#nsGo').onclick = async () => {
+    const s = d.sites.find(x => x.name === chipVal('nsS')[0]); if (!s) { toast('現場を選んでください', 0); return; }
+    const to = chipVal('nsC')[0] || 'この現場の全員', tx = $('#nsT').value.trim(), fs = FB.ns || [];
+    if (!tx && !fs.length) { toast('文かファイルを入れてください', 0); return; }
+    if (!confirm(s.name + '　' + (to === 'この現場の全員' ? '全員' : to + 'さん') + 'へ送ります（前に同じ相手へ出した連絡は消えます）')) return;
+    busy(true, fs.length ? 'ファイルを送っています…' : '送っています…');
+    try { await call('adminNotice', A.pin, s.id, tx, { company: to === 'この現場の全員' ? '' : to, files: fs }); render.dirty = false; toast('送りました'); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); }
+  };
+  $$('[data-noff]').forEach(x => x.onclick = async () => { if (!confirm('この連絡を消しますか（職長の画面から消えます）')) return; busy(true); try { await call('adminNoticeOff', A.pin, +x.dataset.noff); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
   $$('[data-done]').forEach(b => b.onclick = async () => { busy(true); try { await call('adminRenrakuDone', A.pin, b.dataset.done); adminStart(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } });
   $$('.tg').forEach(t => t.onclick = async () => { const on = !t.classList.contains('on'); t.classList.toggle('on', on); try { await call('adminSwitch', A.pin, t.dataset.site, t.dataset.f, on); } catch (e) { toast(e.message); t.classList.toggle('on', !on); } });
   const safe = (fn, msg) => async () => { busy(true); try { await fn(); if (msg) toast(msg); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } };
@@ -1085,6 +1124,7 @@ function gTab(tab) {
   let h = '<div class="tabs">' + ['今日', '返事', '中井へ送る', '新規入場', '会社'].map(t => '<div data-t="' + t + '" class="' + (t === tab ? 'on' : '') + '">' + t + (t === '返事' && nWait ? '（' + nWait + '）' : '') + '</div>').join('') + '</div>';
   if (tab === '今日') {
     h += '<div class="card dbar"><div class="row"><button class="btn gray" id="dPrev" aria-label="前の日">◀</button><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><button class="btn gray" id="dNext" aria-label="次の日"' + (d.today >= d.real ? ' disabled' : '') + '>▶</button></div><div class="qr-chips"><span data-jump="0">今日</span><span data-jump="-1">昨日</span></div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2>';
+    (d.notices || []).forEach(n => h += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）' + esc(n.site) + (n.to ? '　' + esc(n.to) + 'さんへ' : '') + '</b><span class="pre">' + esc(n.text) + '</span>' + fileLinks(n.files) + '</div>');   // 中井からの連絡（11/12）
     if (!d.sites.length) h += '<div class="card">見られる現場がありません</div>';
     d.sites.forEach(s => { const sk = (d.shinki || []).filter(x => x['現場id'] === s.id && String(x['日時']).slice(0, 10) === d.today); h += '<div class="card"><h2>' + esc(s.name) + '</h2><div class="small">' + esc(s.cos.join('・')) + 'の分</div>' + (s.recs.length ? s.recs.map((r, i) => recCard(r, i, s.ky, true)).join('') : '<div class="small" style="margin-top:8px">まだ誰も押していません</div>') + (sk.length ? '<h3 style="margin-top:12px">この日の新規入場（' + sk.length + '名）</h3>' + sk.map(x => shinCard(x)).join('') : '') + '</div>'; });
     h += '<button class="btn gray" id="reload">更新</button>';
