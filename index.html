@@ -144,6 +144,7 @@ details.shin summary{cursor:pointer;list-style:none}details.shin summary::-webki
 .chip.free{border-style:dashed;color:var(--blue);background:#f5f9ff}
 .chip.all{font-weight:700;border-width:2px}
 .fbl{margin:6px 0}.fbi{display:inline-block;background:#eef3ff;border-radius:8px;padding:6px 10px;margin:3px 6px 3px 0;font-size:15px}.fbi b{color:#c62828;margin-left:6px;cursor:pointer}
+.seen{margin:6px 0;padding:8px 10px;background:#eefaf1;border-radius:8px;font-size:14px;color:#2e7d32;line-height:1.6}.seen.none{background:#fff4e5;color:#b35c00}
 .fls{margin-top:8px}.flk{display:block;background:#fff;border:2px solid var(--blue);color:var(--blue);border-radius:10px;padding:12px;margin:6px 0;font-size:17px;font-weight:700;text-decoration:none;text-align:center}
 #tabbar div{color:#48484a}#tabbar div.on{color:var(--blue)}
 :root{--blue:#0060df;--orange:#d9480f;--gray:#48484a}
@@ -320,7 +321,22 @@ document.addEventListener('change', async e => {
 const FB = {};
 function fileBox(key) { FB[key] = []; return '<label class="photoin">📎 PDF・写真を付ける（3つまで）<input type="file" accept="application/pdf,image/*" multiple data-fb="' + esc(key) + '"></label><div class="fbl" data-fbl="' + esc(key) + '"></div>'; }
 function drawFB(key) { const el = $('[data-fbl="' + key + '"]'); if (el) el.innerHTML = (FB[key] || []).map((f, i) => '<span class="fbi">' + (f.data.indexOf('data:application/pdf') === 0 ? '📄 ' : '🖼 ') + esc(f.name) + ' <b data-fbx="' + esc(key) + '" data-i="' + i + '">✕</b></span>').join(''); }
-function fileLinks(fs) { return (fs || []).length ? '<div class="fls">' + fs.map(f => '<a class="flk" href="' + esc(f.u) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + (f.t === 'application/pdf' ? '📄 ' : '🖼 ') + esc(f.n) + ' を開く</a>').join('') + '</div>' : ''; }
+function fileLinks(fs, rk) { return (fs || []).length ? '<div class="fls">' + fs.map(f => '<a class="flk" href="' + esc(f.u) + '" target="_blank" rel="noopener"' + (rk ? ' data-rk="' + esc(rk) + '" data-fn="' + esc(f.n) + '"' : '') + ' onclick="event.stopPropagation();fOpen(this)">' + (f.t === 'application/pdf' ? '📄 ' : '🖼 ') + esc(f.n) + ' を開く</a>').join('') + '</div>' : ''; }
+// 職長さん・業者がファイルを押した時に「開いた」を残す（11/15）。中井の画面では残さない。開く方を待たせないように、送りっぱなしにする
+let MODE = '';
+function fOpen(a) {
+  const rk = a.dataset.rk, n = a.dataset.fn; if (!rk || MODE === 'admin') return;
+  const send = (fn, args) => { try { if (typeof API !== 'undefined') fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn, args }), keepalive: true }).catch(() => {}); else call(fn, ...args).catch(() => {}); } catch (e) {} };
+  if (INIT.gk) send('gyoushaFileOpen', [INIT.gk, rk, n]);
+  else if (S.siteId && S.company && S.foreman) send('fileOpen', [Object.assign(P(), { rk, n })]);
+}
+// 中井の画面に出す「だれが見た・開いた」（11/15）
+function seenLine(list, when) {
+  if (!list) return '';
+  if (!list.length) return '<div class="seen none">👀 ' + (when && when < '2026-11-15' ? '11/15より前に出した物は、見た記録がありません（次に開いた時から残ります）' : 'まだだれの画面にも出ていません') + '</div>';
+  const t = s => esc(String(s || '').slice(5).replace('-', '/'));
+  return '<div class="seen">' + list.map(x => '<div>👀 <b>' + esc(x.who) + '</b>　' + (x.seen ? t(x.seen) + ' 見た' : '') + x.open.map(o => '　📄 ' + t(o.at) + ' 開いた' + (x.open.length > 1 ? '（' + esc(o.n) + '）' : '')).join('') + '</div>').join('') + '</div>';
+}
 document.addEventListener('change', async e => {
   const key = e.target.dataset && e.target.dataset.fb; if (key == null || !e.target.files.length) return;
   const list = FB[key] = FB[key] || [];
@@ -531,12 +547,12 @@ function viewHome() {
   const b = S.boot, f = S.site.features, r = S.rec || {};
   tabbar('home');
   let top = '';
-  b.notices.forEach(n => top += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）' + (n.to ? esc(n.to) + 'さんへ' : '') + '</b><span class="pre">' + esc(n.text) + '</span>' + fileLinks(n.files) + '</div>');
+  b.notices.forEach(n => top += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）' + (n.to ? esc(n.to) + 'さんへ' : '') + '</b><span class="pre">' + esc(n.text) + '</span>' + fileLinks(n.files, n.rk) + '</div>');
   if (b.yesterdayOpen && !outbox().some(x => x.fn === 'taijo' && x.payload.day === b.yesterdayOpen.date)) top += '<div class="card note"><b>' + jpDate(b.yesterdayOpen.date) + 'の「出ました」が押されていません</b>' + jpDate(b.yesterdayOpen.date) + '（' + esc(b.yesterdayOpen.in) + '入場）は何時に出ましたか' + (!qrOK() && !isNakai() ? '<br><span class="small">現場のQRを読んで開くと入れられます</span>' : '<input type="time" id="yOut" value="17:00"><button class="btn" id="yOk">この時間で記録</button>') + '</div>';
   if (S.site.rain && r['入場'] && !r['明日']) top += '<div class="card note"><b>☂ 明日は雨の予報です</b>明日はどうしますか<div class="row"><button class="btn" data-a="来る">来る</button><button class="btn red" data-a="来ない">来ない</button></div></div>';
   // 中井の返事：一番新しい1件だけ大きく、残りは件数だけ（大きいボタンが下に押し出されないように）
   const rps = b.replies || [], k0 = rps[rps.length - 1];
-  if (k0) top += '<div class="card note rp" data-rp="' + esc(k0.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 ' + esc(k0.by || '中井') + 'の返事（' + esc(k0.when.slice(5)) + '）' + esc(k0.basho ? '・' + k0.basho : '') + (rps.length > 1 ? '　ほか' + (rps.length - 1) + '件' : '') + '</b><span class="small">' + (k0.kind === 'ren' ? '頼んだこと' : '聞いたこと') + (k0.foreman && k0.foreman !== S.foreman ? '（' + esc(k0.foreman) + 'さん）' : '') + '：' + esc(k0.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k0.reply) + '</span>' + fileLinks(k0.files) + '<br><span class="link" style="font-size:15px">写真とこれまでのやりとりを見る ›</span></div>';
+  if (k0) top += '<div class="card note rp" data-rp="' + esc(k0.id) + '" style="border-left-color:var(--green);background:#eefaf1;cursor:pointer"><b style="color:#2e7d32">💬 ' + esc(k0.by || '中井') + 'の返事（' + esc(k0.when.slice(5)) + '）' + esc(k0.basho ? '・' + k0.basho : '') + (rps.length > 1 ? '　ほか' + (rps.length - 1) + '件' : '') + '</b><span class="small">' + (k0.kind === 'ren' ? '頼んだこと' : '聞いたこと') + (k0.foreman && k0.foreman !== S.foreman ? '（' + esc(k0.foreman) + 'さん）' : '') + '：' + esc(k0.text || '（写真のみ）') + '</span><br><span style="font-size:18px;font-weight:600">' + esc(k0.reply) + '</span>' + fileLinks(k0.files, k0.rk) + '<br><span class="link" style="font-size:15px">写真とこれまでのやりとりを見る ›</span></div>';
   render(top, '#top');
   $$('#top [data-rp]').forEach(x => x.onclick = () => { k0.kind === 'ren' ? viewRenraku('頼み事') : viewKakunin(); });
   if ($('#yOk')) $('#yOk').onclick = async () => { if (!/^\d\d:\d\d$/.test($('#yOut').value)) { toast('出た時刻を入れてください', 0); return; } busy(true); try { await call('taijo', Object.assign(P(), { date: b.yesterdayOpen.date, time: $('#yOut').value, qrNone: !qrOK() })); toast('前の日の退場を記録しました'); reboot(); } catch (e) { toast(jpErr(e), 0); } finally { busy(false); } };
@@ -651,7 +667,7 @@ function kkCard(k, photoAttr) {
   return '<div class="card kk"><div class="kk-h"><span class="small">' + esc((k.when || '').slice(5).replace('-', '/')) + (k.basho ? '　' + esc(k.basho) : '') + (k.site && photoAttr === 'data-p' ? '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) : '') + '</span>' + st + '</div>'
     + '<div class="kk-q"><b>聞いたこと' + (photoAttr === 'data-mp' && k.foreman && k.foreman !== S.foreman ? '（' + esc(k.foreman) + 'さん）' : '') + '</b>' + esc(k.text || '（写真のみ）') + '</div>'
     + (k.photos.length ? '<div>' + k.photos.map((x, i) => '<span class="phbtn" ' + photoAttr + '="' + esc(x) + '">📷 写真' + (i + 1) + 'を見る</span>').join('') + '</div>' : '')
-    + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + fileLinks(k.files) + '</div>' : '') + '</div>';
+    + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + fileLinks(k.files, k.rk) + seenLine(k.seen, k.replyWhen) + '</div>' : '') + '</div>';
 }
 // 頼み事・ヒヤリハットのカード（中井の返事・済の印つき。中井の画面・業者の画面・職長の画面で同じ物、11/10）
 function renCard(k, photoAttr, withWho) {
@@ -659,7 +675,7 @@ function renCard(k, photoAttr, withWho) {
   return '<div class="card kk" data-nm="' + esc(pnm(k)) + '"><div class="kk-h"><span class="small">' + esc((k.when || '').slice(5).replace('-', '/')) + (withWho ? '　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) : '') + '</span>' + st + '</div>'
     + '<div class="kk-q"><b>' + (k.kega ? '🚨 ' : '') + esc(k.shurui) + (!withWho && k.foreman && k.foreman !== S.foreman ? '（' + esc(k.foreman) + 'さん）' : '') + '</b>' + esc(k.text || '（写真のみ）') + '</div>'
     + (k.photos.length ? '<div>' + k.photos.map((x, i) => '<span class="phbtn" ' + photoAttr + '="' + esc(x) + '">📷 写真' + (i + 1) + 'を見る</span>').join('') + '</div>' : '')
-    + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + fileLinks(k.files) + '</div>' : '') + '</div>';
+    + (k.reply ? '<div class="kk-a"><b>' + esc(k.replyBy || '中井') + 'の返事（' + esc((k.replyWhen || '').slice(5).replace('-', '/')) + '）</b>' + esc(k.reply) + fileLinks(k.files, k.rk) + seenLine(k.seen, k.replyWhen) + '</div>' : '') + '</div>';
 }
 // 写真を保存する時の名前：現場名_日時（例：フローラ2_202611100929）
 function pnm(k) { return String(k.site || '').replace(/外壁塗装工事|改修工事|工事$/g, '') + '_' + String(k.when || '').replace(/\D/g, '').slice(0, 12); }
@@ -930,6 +946,7 @@ function pinScreen() {
   };
 }
 async function adminStart(keep) {   // keep＝保存の後など、見ていた場所（スクロール）をそのままにする
+  MODE = 'admin';   // 中井が押したファイルは「開いた」に残さない
   $('#tabbar').style.display = 'none';
   if (!A.pin) return pinScreen();
   if (!A.unlocked && LS.get('fid')) {   // Face ID を使う携帯：開いた時に1回だけ顔で確かめる
@@ -1029,7 +1046,7 @@ function adminTab(tab) {
     // 中井から先に送る（返事を待たずに、PDF・写真を付けて頼む。11/12 中井様「チラシのPDFを岸本さんに」）。職長の画面の一番上と業者の画面に出る
     const sd = A.sendSite || (d.sites[0] || {}).id || '', cos = (d.siteCos || {})[sd] || [];
     h += '<div class="card" id="nsW"><h2>📤 中井から送る</h2><div class="small">PDF・写真を付けて職長さんへ。職長の画面の一番上と、業者の画面に出ます</div><h3>現場</h3>' + chips('nsS', d.sites.map(s => s.name), { sub: true, value: (d.sites.find(s => s.id === sd) || {}).name }) + '<h3>だれに</h3>' + chips('nsC', ['この現場の全員'].concat(cos), { sub: true, value: 'この現場の全員' }) + '<textarea id="nsT" placeholder="例：このチラシを各戸のポストに入れてください"></textarea>' + fileBox('ns') + '<button class="btn ok" id="nsGo">送る</button>'
-      + (d.notices.filter(n => n.siteId).length ? '<h3>今出している連絡</h3>' + d.notices.filter(n => n.siteId).map(n => '<div class="line"><b>' + esc((d.sites.find(s => s.id === n.siteId) || {}).name || '') + '　' + esc(n.to || '全員') + '</b>　' + esc(n.when.slice(5)) + '<div class="small">' + esc(n.text) + '</div>' + fileLinks(n.files) + '<span class="link" data-noff="' + n.row + '">この連絡を消す</span></div>').join('') : '') + '</div>';
+      + (d.notices.filter(n => n.siteId).length ? '<h3>今出している連絡</h3>' + d.notices.filter(n => n.siteId).map(n => '<div class="line"><b>' + esc((d.sites.find(s => s.id === n.siteId) || {}).name || '') + '　' + esc(n.to || '全員') + '</b>　' + esc(n.when.slice(5)) + '<div class="small">' + esc(n.text) + '</div>' + fileLinks(n.files) + seenLine(n.seen, n.when) + '<span class="link" data-noff="' + n.row + '">この連絡を消す</span></div>').join('') : '') + '</div>';
     if (!d.pending.length && !d.renraku.length) h += '<div class="card">返事待ちはありません</div>';
     d.pending.forEach(k => h += '<div class="card" data-k="' + esc(k.id) + '" data-nm="' + esc(pnm(k)) + '"><b>📷 ここどうしますか　' + esc(k.site) + '　' + esc(k.company) + ' ' + esc(k.foreman) + '</b><div class="small">' + esc(k.when) + (k.basho ? '　' + esc(k.basho) : '') + '</div><div class="pre">' + esc(k.text) + '</div><div class="thumbs">' + k.photos.map(p => '<img data-p="' + esc(p) + '" alt="写真">').join('') + '</div>' + shareBar(k) + '<div class="qr-chips">' + ['OKです', 'そのままで大丈夫です', '明日見に行きます', '電話します', '写真をもう1枚ください'].map(x => '<span data-qt="' + x + '">' + x + '</span>').join('') + '</div><textarea placeholder="返事（職長の画面に出ます）"></textarea>' + fileBox('k' + k.id) + '<button class="btn ok" data-reply="' + esc(k.id) + '">返事を送る</button></div>');
     // 頼み事にも文で返事できる（職長の画面・業者の画面に出る。11/10）。返事が要らない物は「済にする」だけ
@@ -1124,7 +1141,7 @@ function gTab(tab) {
   let h = '<div class="tabs">' + ['今日', '返事', '中井へ送る', '新規入場', '会社'].map(t => '<div data-t="' + t + '" class="' + (t === tab ? 'on' : '') + '">' + t + (t === '返事' && nWait ? '（' + nWait + '）' : '') + '</div>').join('') + '</div>';
   if (tab === '今日') {
     h += '<div class="card dbar"><div class="row"><button class="btn gray" id="dPrev" aria-label="前の日">◀</button><input type="date" id="dPick" value="' + esc(d.today) + '" max="' + esc(d.real) + '"><button class="btn gray" id="dNext" aria-label="次の日"' + (d.today >= d.real ? ' disabled' : '') + '>▶</button></div><div class="qr-chips"><span data-jump="0">今日</span><span data-jump="-1">昨日</span></div></div><h2>' + jpDate(d.today) + (d.today === d.real ? '（今日）' : '') + '</h2>';
-    (d.notices || []).forEach(n => h += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）' + esc(n.site) + (n.to ? '　' + esc(n.to) + 'さんへ' : '') + '</b><span class="pre">' + esc(n.text) + '</span>' + fileLinks(n.files) + '</div>');   // 中井からの連絡（11/12）
+    (d.notices || []).forEach(n => h += '<div class="card note"><b>📢 中井より（' + esc(n.when.slice(5)) + '）' + esc(n.site) + (n.to ? '　' + esc(n.to) + 'さんへ' : '') + '</b><span class="pre">' + esc(n.text) + '</span>' + fileLinks(n.files, n.rk) + '</div>');   // 中井からの連絡（11/12）
     if (!d.sites.length) h += '<div class="card">見られる現場がありません</div>';
     d.sites.forEach(s => { const sk = (d.shinki || []).filter(x => x['現場id'] === s.id && String(x['日時']).slice(0, 10) === d.today); h += '<div class="card"><h2>' + esc(s.name) + '</h2><div class="small">' + esc(s.cos.join('・')) + 'の分</div>' + (s.recs.length ? s.recs.map((r, i) => recCard(r, i, s.ky, true)).join('') : '<div class="small" style="margin-top:8px">まだ誰も押していません</div>') + (sk.length ? '<h3 style="margin-top:12px">この日の新規入場（' + sk.length + '名）</h3>' + sk.map(x => shinCard(x)).join('') : '') + '</div>'; });
     h += '<button class="btn gray" id="reload">更新</button>';
